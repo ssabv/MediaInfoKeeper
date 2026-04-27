@@ -23,6 +23,7 @@ namespace MediaInfoKeeper.Options.View
         public override Task<IPluginUIView> OnSaveCommand(string itemId, string commandId, string data)
         {
             this.store.SetOptions(this.Options);
+            this.ContentData = this.store.GetOptions();
             return base.OnSaveCommand(itemId, commandId, data);
         }
     }

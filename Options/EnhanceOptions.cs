@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using Emby.Web.GenericEdit;
 using Emby.Web.GenericEdit.Common;
+using Emby.Web.GenericEdit.Elements;
 using Emby.Web.GenericEdit.Editors;
 using MediaBrowser.Model.Attributes;
 using MediaBrowser.Model.GenericEdit;
@@ -16,12 +17,22 @@ namespace MediaInfoKeeper.Options
         public override string EditorDescription => "增强功能页，搜索、Web 调整、深度删除、通知、人物显示、NFO、合集、媒体库和日志这些都在这里。改完记得保存。";
 
         [DisplayName("启用增强搜索")]
-        [Description("支持中文模糊搜索与拼音搜索，默认关闭。\n\n修改后请先保存配置，再重启 Emby 使设置生效。\n\n卸载插件前，请先关闭本功能并保存配置，再移除插件，避免出现 no such tokenizer: simple。")]
+        [Description("支持中文模糊搜索与拼音搜索，默认关闭。\n\n修改后请先保存配置，再重启 Emby 使设置生效。\n\n卸载插件前，请先关闭本功能并保存配置重启Emby，再移除插件，避免出现 no such tokenizer: simple。")]
         public bool EnhanceChineseSearch { get; set; } = false;
+
+        [VisibleCondition(nameof(ShowChineseSearchTokenizerStatus), SimpleCondition.IsTrue)]
+        public StatusItem ChineseSearchTokenizerStatus { get; set; } = new StatusItem();
 
         [Browsable(false)]
         public bool EnhanceChineseSearchRestore { get; set; } = false;
 
+        [Browsable(false)]
+        public bool ShowChineseSearchTokenizerStatus { get; set; } = true;
+        
+        [DisplayName("排除原始标题")]
+        [Description("从搜索中排除 OriginalTitle 字段")]
+        public bool ExcludeOriginalTitleFromSearch { get; set; } = false;
+        
         public enum SearchItemType
         {
             Movie,
@@ -54,11 +65,7 @@ namespace MediaInfoKeeper.Options
                 SearchItemType.MusicAlbum,
                 SearchItemType.MusicTrack
             });
-
-        [DisplayName("排除原始标题")]
-        [Description("从搜索中排除 OriginalTitle 字段")]
-        public bool ExcludeOriginalTitleFromSearch { get; set; } = false;
-
+        
         [DisplayName("Strm 直连")]
         [Description("对无需转码且可直放的远端 http .strm 视频和音乐生效，让客户端直接拉取直链而不是经 Emby 中转。")]
         public bool EnableStrmDirectRedirect { get; set; } = false;
@@ -242,8 +249,9 @@ namespace MediaInfoKeeper.Options
 
             AddGroup("增强搜索", "",
                 nameof(EnhanceChineseSearch),
-                nameof(SearchScope),
-                nameof(ExcludeOriginalTitleFromSearch));
+                nameof(ChineseSearchTokenizerStatus),
+                nameof(ExcludeOriginalTitleFromSearch),
+                nameof(SearchScope));
 
             AddGroup("Emby Strm", "",
                 nameof(EnableStrmDirectRedirect),

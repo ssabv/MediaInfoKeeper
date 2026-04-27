@@ -24,6 +24,8 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
             "LibraryList",
             "SubsequentMarkerModeList",
             "SearchItemTypeList",
+            "ChineseSearchTokenizerStatus",
+            "ShowChineseSearchTokenizerStatus",
             "HidePersonOptionList",
             "FallbackLanguageList",
             "TvdbFallbackLanguageList",
