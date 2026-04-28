@@ -39,7 +39,7 @@ namespace MediaInfoKeeper.Patch
         private static Harmony harmony;
         private static MethodInfo runFfProcess;
         private static MethodInfo diagnosticsRunFfProcess;
-        private static MethodInfo runExtraction;
+        private static MethodInfo[] runExtractionMethods = Array.Empty<MethodInfo>();
         private static PropertyInfo exitCode;
         private static PropertyInfo standardOutput;
         private static PropertyInfo standardError;
@@ -47,7 +47,7 @@ namespace MediaInfoKeeper.Patch
         private static ILogger logger;
         private static bool isEnabled;
         public static bool IsReady => harmony != null && runFfProcess != null && diagnosticsRunFfProcess != null &&
-                                      runExtraction != null && emptyResult != null;
+                                      runExtractionMethods.Length > 0 && emptyResult != null;
 
         public static void Initialize(ILogger pluginLogger, bool disableSystemFfprobe)
         {
@@ -74,7 +74,7 @@ namespace MediaInfoKeeper.Patch
 
                 runFfProcess = ResolveRunFfProcess(mediaEncoding, mediaProbeManager);
                 diagnosticsRunFfProcess = ResolveDiagnosticsRunFfProcess(mediaEncoding);
-                runExtraction = ResolveRunExtraction(mediaEncoding);
+                runExtractionMethods = ResolveRunExtractionMethods(mediaEncoding);
 
                 var processRun = Assembly.Load("Emby.ProcessRun");
                 var processResult = processRun?.GetType("Emby.ProcessRun.Common.ProcessResult");
@@ -102,7 +102,7 @@ namespace MediaInfoKeeper.Patch
                     harmony.Patch(diagnosticsRunFfProcess,
                         prefix: new HarmonyMethod(typeof(FfProcessGuard), nameof(DiagnosticsRunFfProcessPrefix)),
                         postfix: new HarmonyMethod(typeof(FfProcessGuard), nameof(RunFfProcessPostfix)));
-                    PatchRunExtractionMethod(runExtraction);
+                    PatchRunExtractionMethods(runExtractionMethods);
                 }
                 catch (Exception patchEx)
                 {
@@ -248,14 +248,27 @@ namespace MediaInfoKeeper.Patch
             return false;
         }
 
-        private static bool RunExtractionPrefix(object __instance, string __0, ref object __result)
+        private static bool RunExtractionPrefix(object[] __args, ref object __result)
         {
             if (!isEnabled)
             {
                 return true;
             }
 
-            var inputHint = ExtractInputHint($"-i file:\"{__0 ?? string.Empty}\"");
+            string inputPath = null;
+            if (__args != null && __args.Length > 0)
+            {
+                if (__args[0] is string legacyInputPath)
+                {
+                    inputPath = legacyInputPath;
+                }
+                else if (__args.Length > 1 && __args[1] is string currentInputPath)
+                {
+                    inputPath = currentInputPath;
+                }
+            }
+
+            var inputHint = ExtractInputHint($"-i file:\"{inputPath ?? string.Empty}\"");
             var displayTarget = $"ffmpeg {inputHint}";
             if (HasFfprocessAllowanceInCurrentScope())
             {
@@ -414,41 +427,66 @@ namespace MediaInfoKeeper.Patch
             }
         }
 
-        private static MethodInfo ResolveRunExtraction(Assembly mediaEncoding)
+        private static MethodInfo[] ResolveRunExtractionMethods(Assembly mediaEncoding)
         {
             var imageExtractorBaseType = mediaEncoding?.GetType("Emby.Server.MediaEncoding.ImageExtraction.ImageExtractorBase");
             if (imageExtractorBaseType == null)
             {
                 PatchLog.InitFailed(logger, nameof(FfProcessGuard), "未找到 ImageExtractorBase 类型");
-                return null;
+                return Array.Empty<MethodInfo>();
             }
 
             var mediaBrowserModel = Assembly.Load("MediaBrowser.Model");
+            var mediaSourceInfoType = mediaBrowserModel?.GetType("MediaBrowser.Model.Dto.MediaSourceInfo");
             var mediaContainersType = mediaBrowserModel?.GetType("MediaBrowser.Model.MediaInfo.MediaContainers");
             var mediaProtocolType = mediaBrowserModel?.GetType("MediaBrowser.Model.MediaInfo.MediaProtocol");
             var video3DFormatType = mediaBrowserModel?.GetType("MediaBrowser.Model.Entities.Video3DFormat");
             if (mediaContainersType == null || mediaProtocolType == null || video3DFormatType == null)
             {
                 PatchLog.InitFailed(logger, nameof(FfProcessGuard), "未找到 ImageExtraction 相关依赖类型");
-                return null;
+                return Array.Empty<MethodInfo>();
             }
 
             var assemblyVersion = mediaEncoding.GetName().Version;
-            return PatchMethodResolver.Resolve(
-                imageExtractorBaseType,
-                assemblyVersion,
-                new MethodSignatureProfile
+            var legacyProfile = new MethodSignatureProfile
+            {
+                Name = "run-extraction-legacy-exact",
+                MethodName = "RunExtraction",
+                BindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                ParameterTypes = new[]
                 {
-                    Name = "run-extraction-exact",
-                    MethodName = "RunExtraction",
-                    BindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    ParameterTypes = new[]
+                    typeof(string),
+                    typeof(System.Collections.Generic.IDictionary<string, string>),
+                    typeof(Nullable<>).MakeGenericType(mediaContainersType),
+                    typeof(MediaStream),
+                    typeof(Nullable<>).MakeGenericType(mediaProtocolType),
+                    typeof(int?),
+                    typeof(Nullable<>).MakeGenericType(video3DFormatType),
+                    typeof(TimeSpan?),
+                    typeof(TimeSpan?),
+                    typeof(string),
+                    typeof(string),
+                    typeof(int?),
+                    typeof(bool),
+                    typeof(CancellationToken)
+                },
+                ReturnType = typeof(Task)
+            };
+
+            var currentProfile = new MethodSignatureProfile
+            {
+                Name = "run-extraction-current-exact",
+                MethodName = "RunExtraction",
+                BindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                ParameterTypes = mediaSourceInfoType == null
+                    ? null
+                    : new[]
                     {
+                        mediaSourceInfoType,
                         typeof(string),
-                        typeof(System.Collections.Generic.IDictionary<string, string>),
                         typeof(Nullable<>).MakeGenericType(mediaContainersType),
                         typeof(MediaStream),
-                        typeof(Nullable<>).MakeGenericType(mediaProtocolType),
+                        mediaProtocolType,
                         typeof(int?),
                         typeof(Nullable<>).MakeGenericType(video3DFormatType),
                         typeof(TimeSpan?),
@@ -459,21 +497,78 @@ namespace MediaInfoKeeper.Patch
                         typeof(bool),
                         typeof(CancellationToken)
                     },
-                    ReturnType = typeof(Task)
-                },
-                logger,
-                "FfprobeGuard.RunExtraction");
+                ReturnType = typeof(Task)
+            };
+
+            var selectedProfiles = assemblyVersion != null &&
+                                   (assemblyVersion.Major > 4 ||
+                                    assemblyVersion.Major == 4 && assemblyVersion.Minor >= 10)
+                ? new[] { currentProfile }
+                : new[] { legacyProfile };
+
+            var methods = selectedProfiles
+                .Where(profile => profile.ParameterTypes != null)
+                .Select(profile =>
+                {
+                    var method = imageExtractorBaseType.GetMethod(
+                        profile.MethodName,
+                        profile.BindingFlags,
+                        null,
+                        profile.ParameterTypes,
+                        null);
+
+                    if (method == null || profile.ReturnType != null && method.ReturnType != profile.ReturnType)
+                    {
+                        return null;
+                    }
+
+                    PatchLog.ResolveHit(
+                        logger,
+                        "FfprobeGuard.RunExtraction",
+                        "exact",
+                        profile.Name ?? profile.MethodName ?? "unknown",
+                        string.Format(
+                            "{0}.{1}({2}) -> {3}",
+                            method.DeclaringType?.FullName ?? "<unknown>",
+                            method.Name,
+                            string.Join(",", method.GetParameters().Select(p => p.ParameterType.Name)),
+                            method.ReturnType?.Name ?? "<void>"),
+                        assemblyVersion?.ToString() ?? "<unknown>");
+                    return method;
+                })
+                .Where(method => method != null)
+                .Distinct()
+                .ToArray();
+
+            if (methods.Length == 0)
+            {
+                var selectedProfileNames = string.Join(",", selectedProfiles.Select(profile => profile.Name));
+                PatchLog.Candidates(
+                    logger,
+                    "FfprobeGuard.RunExtraction",
+                    $"dll版本={assemblyVersion?.ToString() ?? "<unknown>"}，已选配置={selectedProfileNames}");
+                PatchLog.ResolveFailed(
+                    logger,
+                    "FfprobeGuard.RunExtraction",
+                    imageExtractorBaseType.FullName,
+                    assemblyVersion?.ToString() ?? "<unknown>");
+            }
+
+            return methods;
         }
 
-        private static void PatchRunExtractionMethod(MethodInfo method)
+        private static void PatchRunExtractionMethods(MethodInfo[] methods)
         {
-            if (method == null)
+            if (methods == null || methods.Length == 0)
             {
                 return;
             }
 
-            PatchLog.Patched(logger, nameof(FfProcessGuard), method);
-            harmony.Patch(method, prefix: new HarmonyMethod(typeof(FfProcessGuard), nameof(RunExtractionPrefix)));
+            foreach (var method in methods)
+            {
+                PatchLog.Patched(logger, nameof(FfProcessGuard), method);
+                harmony.Patch(method, prefix: new HarmonyMethod(typeof(FfProcessGuard), nameof(RunExtractionPrefix)));
+            }
         }
 
         private static bool HasFfprocessAllowanceInCurrentScope()
