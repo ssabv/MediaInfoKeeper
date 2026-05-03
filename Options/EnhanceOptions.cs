@@ -147,11 +147,15 @@ namespace MediaInfoKeeper.Options
         [SelectItemsSource(nameof(HidePersonOptionList))]
         [VisibleCondition(nameof(HidePersonNoImage), SimpleCondition.IsTrue)]
         public string HidePersonPreference { get; set; } = string.Empty;
-
+        
+        [DisplayName("电视剧显示总集数")]
+        [Description("将电视剧和季度原本返回的未观看集数改为返回总集数，剧集、季的已播放显示状态会受影响。默认关闭。")]
+        public bool EnableSeriesTotalEpisodeCount { get; set; } = false;
+        
         [DisplayName("禁止自动合集")]
         [Description("阻止 Emby 自动创建 BoxSets 合集库，并在用户视图中过滤该入口。")]
         public bool NoBoxsetsAutoCreation { get; set; } = false;
-
+        
         [DisplayName("统一媒体库顺序")]
         [Description("让所有用户的媒体库顺序跟随首个管理员的 OrderedViews 配置。")]
         public bool EnforceLibraryOrder { get; set; } = false;
@@ -278,6 +282,7 @@ namespace MediaInfoKeeper.Options
                 nameof(HidePersonPreference),
                 nameof(EnablePinyinSortName),
                 nameof(EnableNfoMetadataEnhance),
+                nameof(EnableSeriesTotalEpisodeCount),
                 nameof(NoBoxsetsAutoCreation),
                 nameof(EnforceLibraryOrder));
 

@@ -420,6 +420,18 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "SeriesTotalEpisodeCount",
+                Initialize = options => SeriesTotalEpisodeCount.Initialize(
+                    logger,
+                    options.Enhance.EnableSeriesTotalEpisodeCount),
+                Configure = options => SeriesTotalEpisodeCount.Configure(
+                    IsPluginEnabled(options) && options.Enhance.EnableSeriesTotalEpisodeCount),
+                IsEnabled = options => IsPluginEnabled(options) && options.Enhance.EnableSeriesTotalEpisodeCount,
+                IsReady = () => SeriesTotalEpisodeCount.IsReady
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "EpisodeBackdropFallback",
                 Initialize = options => EpisodeBackdropFallback.Initialize(
                     logger,
