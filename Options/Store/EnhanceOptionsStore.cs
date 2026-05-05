@@ -38,6 +38,7 @@ namespace MediaInfoKeeper.Options.Store
             var isSimpleTokenizer =
                 string.Equals(ChineseSearch.CurrentTokenizerName, "simple", StringComparison.Ordinal);
             next.EnhanceChineseSearchRestore = !next.EnhanceChineseSearch && isSimpleTokenizer;
+            next.Initialize();
             next.ChineseSearchTokenizerStatus = BuildChineseSearchTokenizerStatus(next);
             next.ShowChineseSearchTokenizerStatus = true;
 

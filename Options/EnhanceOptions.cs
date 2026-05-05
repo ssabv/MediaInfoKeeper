@@ -15,20 +15,29 @@ namespace MediaInfoKeeper.Options
         public override string EditorTitle => "增强功能";
 
         public override string EditorDescription => "增强功能页，搜索、Web 调整、深度删除、通知、人物显示、NFO、合集、媒体库和日志这些都在这里。改完记得保存。";
-
+        
+        [DisplayName("重建数据库索引")]
+        public ButtonItem OptimizeDatabaseButton { get; set; } = new ButtonItem("重建数据库索引")
+        {
+            Caption = "重建数据库索引",
+            CommandId = "enhance.optimizeDatabase",
+            Icon = IconNames.settings_backup_restore,
+            ConfirmationPrompt = "将会按照设置重建增强搜索索引，清理数据库中指向不存在图片文件的裂图记录"
+        };
+        
         [DisplayName("启用增强搜索")]
         [Description("支持中文模糊搜索与拼音搜索，默认关闭。\n\n修改后请先保存配置，再重启 Emby 使设置生效。\n\n卸载插件前，请先关闭本功能并保存配置重启Emby，再移除插件，避免出现 no such tokenizer: simple。")]
         public bool EnhanceChineseSearch { get; set; } = false;
 
         [VisibleCondition(nameof(ShowChineseSearchTokenizerStatus), SimpleCondition.IsTrue)]
         public StatusItem ChineseSearchTokenizerStatus { get; set; } = new StatusItem();
-
+        
         [Browsable(false)]
         public bool EnhanceChineseSearchRestore { get; set; } = false;
 
         [Browsable(false)]
         public bool ShowChineseSearchTokenizerStatus { get; set; } = true;
-        
+
         [DisplayName("排除原始标题")]
         [Description("从搜索中排除 OriginalTitle 字段")]
         public bool ExcludeOriginalTitleFromSearch { get; set; } = false;
@@ -255,7 +264,8 @@ namespace MediaInfoKeeper.Options
                 groupedItems.Add(group);
             }
 
-            AddGroup("增强搜索", "",
+            AddGroup("增强搜索", "", 
+                nameof(OptimizeDatabaseButton),
                 nameof(EnhanceChineseSearch),
                 nameof(ChineseSearchTokenizerStatus),
                 nameof(ExcludeOriginalTitleFromSearch),

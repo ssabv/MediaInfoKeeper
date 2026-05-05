@@ -26,6 +26,7 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
             "SearchItemTypeList",
             "ChineseSearchTokenizerStatus",
             "ShowChineseSearchTokenizerStatus",
+            "OptimizeDatabaseButton",
             "HidePersonOptionList",
             "FallbackLanguageList",
             "TvdbFallbackLanguageList",

@@ -60,6 +60,7 @@ namespace MediaInfoKeeper.Patch
         {
             { "imdb", new Regex(@"^tt\d{7,8}$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
             { "imdb_name", new Regex(@"^nm\d{7,8}$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
+            { "itemid", new Regex(@"^item(id)?=(\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
             { "tmdb", new Regex(@"^tmdb(id)?=(\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
             { "tvdb", new Regex(@"^tvdb(id)?=(\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
             { "douban", new Regex(@"^douban(id)?=(\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled) },
@@ -543,7 +544,8 @@ namespace MediaInfoKeeper.Patch
         private static bool RebuildFts(IDatabaseConnection connection, string ftsTableName, string tokenizerName)
         {
             var populateQuery =
-                $"insert into {ftsTableName}(RowId, Name, OriginalTitle, SeriesName, Album) select id, " +
+                $"insert into {ftsTableName}(RowId, ItemId, Name, OriginalTitle, SeriesName, Album) select id, " +
+                "cast(id as text), " +
                 GetSearchColumnNormalization("Name") + ", " +
                 GetSearchColumnNormalization("OriginalTitle") + ", " +
                 GetSearchColumnNormalization("SeriesName") + ", " +
@@ -557,7 +559,7 @@ namespace MediaInfoKeeper.Patch
                 connection.Execute($"DROP TABLE IF EXISTS {ftsTableName}");
 
                 var createFtsTableQuery =
-                    $"CREATE VIRTUAL TABLE IF NOT EXISTS {ftsTableName} USING FTS5 (Name, OriginalTitle, SeriesName, Album, tokenize=\"{tokenizerName}\", prefix='1 2 3 4')";
+                    $"CREATE VIRTUAL TABLE IF NOT EXISTS {ftsTableName} USING FTS5 (ItemId, Name, OriginalTitle, SeriesName, Album, tokenize=\"{tokenizerName}\", prefix='1 2 3 4')";
                 connection.Execute(createFtsTableQuery);
 
                 logger?.Info($"增强搜索 - 开始填充 {ftsTableName}");
@@ -1054,7 +1056,16 @@ namespace MediaInfoKeeper.Patch
                         var match = provider.Value.Match(searchTerm.Trim());
                         if (match.Success)
                         {
-                            query.AnyProviderIdEquals = BuildProviderIdEquals(provider.Key, match);
+                            if (string.Equals(provider.Key, "itemid", StringComparison.Ordinal))
+                            {
+                                query.ItemIds = new[] { long.Parse(match.Groups[2].Value) };
+                                query.IncludeItemTypes = Array.Empty<string>();
+                            }
+                            else
+                            {
+                                query.AnyProviderIdEquals = BuildProviderIdEquals(provider.Key, match);
+                            }
+
                             query.SearchTerm = null;
                             break;
                         }
