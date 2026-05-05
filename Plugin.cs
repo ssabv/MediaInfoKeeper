@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using Emby.Web.GenericEdit.Elements;
 using MediaInfoKeeper.Common;
 using MediaInfoKeeper.Options;
 using MediaInfoKeeper.Options.Store;
@@ -311,8 +312,7 @@ namespace MediaInfoKeeper
             options.MainPage.LibraryList = list;
             options.MainPage.SyncScheduledTaskEditorFromFields();
             options.IntroSkip.LibraryList = list;
-            options.GitHub.CurrentVersion = GetCurrentVersion();
-            options.GitHub.LatestReleaseVersion = GetLatestReleaseVersion();
+            options.GitHub.VersionStatus = BuildVersionStatusItem();
             options.GitHub.ReleaseHistoryBody = GetReleaseHistoryBody();
         }
 
@@ -574,8 +574,7 @@ namespace MediaInfoKeeper
                 new OptionLogEntry("GitHub.GitHubToken", "GitHub", "GitHub 访问令牌", FormatSecretValue(options.GitHub.GitHubToken)),
                 new OptionLogEntry("GitHub.DownloadUrlPrefix", "GitHub", "下载前缀", FormatOptionValue(options.GitHub.DownloadUrlPrefix)),
                 new OptionLogEntry("GitHub.UpdateChannel", "GitHub", "更新频道", FormatOptionValue(options.GitHub.UpdateChannel)),
-                new OptionLogEntry("GitHub.CurrentVersion", "GitHub", "当前版本", FormatOptionValue(options.GitHub.CurrentVersion)),
-                new OptionLogEntry("GitHub.LatestReleaseVersion", "GitHub", "最新版本", FormatOptionValue(options.GitHub.LatestReleaseVersion)),
+                new OptionLogEntry("GitHub.VersionStatus", "GitHub", "版本信息", FormatOptionValue(options.GitHub.VersionStatus?.StatusText)),
 
                 new OptionLogEntry("NetWork.EnableProxyServer", "NetWork", "启用代理", netWorkOptions.EnableProxyServer.ToString()),
                 new OptionLogEntry("NetWork.ProxyServerUrl", "NetWork", "代理服务器地址", FormatOptionValue(netWorkOptions.ProxyServerUrl)),
@@ -597,8 +596,7 @@ namespace MediaInfoKeeper
         {
             return BuildOptionLogEntries(options)
                 .Where(entry =>
-                    !string.Equals(entry.Key, "GitHub.CurrentVersion", StringComparison.Ordinal) &&
-                    !string.Equals(entry.Key, "GitHub.LatestReleaseVersion", StringComparison.Ordinal))
+                    !string.Equals(entry.Key, "GitHub.VersionStatus", StringComparison.Ordinal))
                 .ToList();
         }
 
@@ -999,6 +997,46 @@ namespace MediaInfoKeeper
 
             var version = this.GetType().Assembly.GetName().Version;
             return version == null ? "未知" : $"v{version.ToString(4)}";
+        }
+
+        private StatusItem BuildVersionStatusItem()
+        {
+            var currentVersion = GetCurrentVersion();
+            var latestVersion = GetLatestReleaseVersion();
+
+            var normalizedCurrent = NormalizeVersionLabel(currentVersion);
+            var normalizedLatest = NormalizeVersionLabel(latestVersion);
+            var currentText = string.IsNullOrWhiteSpace(currentVersion) ? "未知" : currentVersion;
+            var latestText = string.IsNullOrWhiteSpace(latestVersion) ? "加载中" : latestVersion;
+
+            var status = ItemStatus.Unknown;
+            var caption = "版本信息";
+
+            if (!string.IsNullOrWhiteSpace(normalizedCurrent) && !string.IsNullOrWhiteSpace(normalizedLatest))
+            {
+                if (string.Equals(normalizedCurrent, normalizedLatest, StringComparison.OrdinalIgnoreCase))
+                {
+                    status = ItemStatus.Succeeded;
+                    caption = "已是最新版本";
+                }
+                else
+                {
+                    status = ItemStatus.Warning;
+                    caption = "发现新版本";
+                }
+            }
+
+            return new StatusItem(
+                caption,
+                $"当前版本：{currentText}\n最新版本：{latestText}",
+                status);
+        }
+
+        private static string NormalizeVersionLabel(string version)
+        {
+            return string.IsNullOrWhiteSpace(version)
+                ? string.Empty
+                : version.Trim().TrimStart('v', 'V');
         }
 
         private static string GetAssemblyReleaseTag(Assembly assembly)

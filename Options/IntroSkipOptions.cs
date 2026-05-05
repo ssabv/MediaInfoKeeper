@@ -20,7 +20,7 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorTitle => "片头片尾";
 
-        public override string EditorDescription => "片头相关设置都放在这里，包括扫描、标记保护和播放行为打标。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         [DisplayName("启用 Strm 片头检测解锁")]
         [Description("开启后允许 .strm 参与 Emby 原生片头指纹探测。")]

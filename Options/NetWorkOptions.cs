@@ -15,7 +15,7 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorTitle => "网络代理";
 
-        public override string EditorDescription => "网络相关设置页，用来调整本地发现地址、代理和 TMDB 请求替换。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         [DisplayName("自定义本地发现地址")]
         [Description("填写 http(s)://host:port 地址作为家庭（局域网）访问发现入口；留空为默认。填写 BLOCKED 将禁用 Emby UDP 应答。")]

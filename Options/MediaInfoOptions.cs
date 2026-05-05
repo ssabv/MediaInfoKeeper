@@ -12,7 +12,7 @@ namespace MediaInfoKeeper.Options
     {
         public override string EditorTitle => "媒体信息";
 
-        public override string EditorDescription => "媒体信息持久化、入库提取、JSON 路径和并发控制都放在这里。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         [DisplayName("入库时提取媒体信息")]
         [Description("入库时若 JSON 不存在或恢复失败，提取媒体信息并写入 JSON。")]

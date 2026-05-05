@@ -14,7 +14,7 @@ namespace MediaInfoKeeper.Options
     {
         public override string EditorTitle => "增强功能";
 
-        public override string EditorDescription => "增强功能页，搜索、Web 调整、深度删除、通知、人物显示、NFO、合集、媒体库和日志这些都在这里。改完记得保存。";
+        public override string EditorDescription => string.Empty;
         
         [DisplayName("重建数据库索引")]
         public ButtonItem OptimizeDatabaseButton { get; set; } = new ButtonItem("重建数据库索引")

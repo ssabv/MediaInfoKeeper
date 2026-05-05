@@ -7,7 +7,7 @@ namespace MediaInfoKeeper.Options
     {
         public override string EditorTitle => "MediaInfoKeeper";
 
-        public override string EditorDescription => "将媒体信息与章节保存为 JSON，并在需要时从 JSON 恢复。";
+        public override string EditorDescription => string.Empty;
 
         // Main page
         [DisplayName("MediaInfo Keeper")]

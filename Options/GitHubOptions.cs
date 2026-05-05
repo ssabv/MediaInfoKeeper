@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using Emby.Web.GenericEdit;
 using Emby.Web.GenericEdit.Common;
+using Emby.Web.GenericEdit.Elements;
 using Emby.Web.GenericEdit.Editors;
 using MediaBrowser.Model.Attributes;
 using MediaBrowser.Model.GenericEdit;
@@ -19,7 +20,7 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorTitle => "GitHub";
 
-        public override string EditorDescription => "当前版本、最新发布说明，建议把 GitHub Token 配好，并配置更新版本的计划任务。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         [DisplayName("GitHub 访问令牌")]
         [Description("设置后使用 Token 获取 Releases，避免未认证请求的限流。")]
@@ -38,17 +39,14 @@ namespace MediaInfoKeeper.Options
         [SelectItemsSource(nameof(UpdateChannelList))]
         public string UpdateChannel { get; set; } = UpdateChannelOption.Stable.ToString();
 
-        [DisplayName("项目地址")]
-        [Description("项目初期，有许多不完善的地方，请及时关注更新。")]
-        public string ProjectUrl { get; set; } = "https://github.com/honue/MediaInfoKeeper";
+        public LabelItem ProjectUrl { get; set; } = new LabelItem("https://github.com/honue/MediaInfoKeeper")
+        {
+            HyperLink = "https://github.com/honue/MediaInfoKeeper",
+            Icon = IconNames.open_in_new
+        };
 
-        [DisplayName("当前版本")]
-        [Description("计划任务可以更新插件。")]
-        public string CurrentVersion { get; set; } = "未知";
-
-        [DisplayName("最新版本")]
-        [Description("按当前更新频道显示 GitHub Releases 中可用的最新版本号。")]
-        public string LatestReleaseVersion { get; set; } = "加载中";
+        [DisplayName("版本信息")]
+        public StatusItem VersionStatus { get; set; } = new StatusItem("版本信息", "当前版本：未知\n最新版本：加载中");
 
         [DisplayName("更新说明")]
         [Description("始终显示全部 GitHub Releases 的发布记录；预发布版会额外标记为 [Prerelease]。")]
@@ -96,17 +94,6 @@ namespace MediaInfoKeeper.Options
                         text.LineCount = 12;
                         text.AllowEmpty = true;
                     }
-                    else if (string.Equals(key, nameof(ProjectUrl), StringComparison.OrdinalIgnoreCase))
-                    {
-                        text.IsReadOnly = true;
-                        text.AllowEmpty = true;
-                    }
-                    else if (string.Equals(key, nameof(LatestReleaseVersion), StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(key, nameof(CurrentVersion), StringComparison.OrdinalIgnoreCase))
-                    {
-                        text.IsReadOnly = true;
-                        text.AllowEmpty = true;
-                    }
                 }
 
                 items.Add(item);
@@ -149,8 +136,7 @@ namespace MediaInfoKeeper.Options
                 nameof(DownloadUrlPrefix),
                 nameof(UpdateChannel),
                 nameof(ProjectUrl),
-                nameof(CurrentVersion),
-                nameof(LatestReleaseVersion),
+                nameof(VersionStatus),
                 nameof(ReleaseHistoryBody));
 
             var remaining = new List<EditorBase>();

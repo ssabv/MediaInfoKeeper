@@ -33,7 +33,7 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorTitle => "元数据";
 
-        public override string EditorDescription => "元数据相关设置，包括刷新过程处理、TMDB 回退和 TVDB 回退。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         [DisplayName("允许提取 Strm 封面")]
         [Description("为 strm 音视频启用封面/缩略图提取，ImageCapture。")]

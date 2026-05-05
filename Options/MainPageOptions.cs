@@ -202,7 +202,7 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorTitle => "基础设置";
 
-        public override string EditorDescription => "媒体信息处理、媒体库范围和计划任务这些常用设置。改完记得保存。";
+        public override string EditorDescription => string.Empty;
 
         public GenericItemList ScheduledTaskEntries { get; set; } = new GenericItemList();
 
