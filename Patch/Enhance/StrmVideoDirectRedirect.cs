@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -9,7 +8,6 @@ using HarmonyLib;
 using MediaInfoKeeper.Services;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.Dto;
@@ -34,20 +32,7 @@ namespace MediaInfoKeeper.Patch
         private static Type streamRequestType;
         private static Type streamStateType;
         private static Type videoStreamRequestType;
-        private static readonly ConcurrentDictionary<string, RedirectUrlCacheEntry> RedirectUrlCache =
-            new ConcurrentDictionary<string, RedirectUrlCacheEntry>(StringComparer.Ordinal);
-        private static readonly ConcurrentDictionary<string, byte> RedirectPrefetchJobs =
-            new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
-        private static readonly ConcurrentDictionary<string, DateTimeOffset> RedirectPrefetchSessions =
-            new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.Ordinal);
-        private static readonly object RedirectUrlCacheTrimLock = new object();
-        private const int RedirectUrlCacheCapacity = 128;
-        private const int RedirectPrefetchSessionCapacity = 16;
-        private static readonly TimeSpan RedirectPrefetchSessionRetention = TimeSpan.FromMinutes(10);
         private static bool followRedirect302 = true;
-        private static int redirectUrlCacheDurationSeconds = 3600;
-        private static int redirectUrlCacheReuseLimit = 5;
-        private static int redirectUrlPrecacheCount = 1;
         private static string[] clientBlacklist = Array.Empty<string>();
 
         public static bool IsReady => harmony != null
@@ -60,20 +45,17 @@ namespace MediaInfoKeeper.Patch
             ILogger pluginLogger,
             bool enabled,
             bool follow302,
-            int cacheDurationSeconds,
-            int reuseLimit,
-            int precacheCount,
             string clientBlacklistText)
         {
             if (harmony != null)
             {
-                Configure(enabled, follow302, cacheDurationSeconds, reuseLimit, precacheCount, clientBlacklistText);
+                Configure(enabled, follow302, clientBlacklistText);
                 return;
             }
 
             logger = pluginLogger;
             isEnabled = enabled;
-            ApplySettings(follow302, cacheDurationSeconds, reuseLimit, precacheCount, clientBlacklistText);
+            ApplySettings(follow302, clientBlacklistText);
 
             try
             {
@@ -174,10 +156,10 @@ namespace MediaInfoKeeper.Patch
             }
         }
 
-        public static void Configure(bool enabled, bool follow302, int cacheDurationSeconds, int reuseLimit, int precacheCount, string clientBlacklistText)
+        public static void Configure(bool enabled, bool follow302, string clientBlacklistText)
         {
             isEnabled = enabled;
-            ApplySettings(follow302, cacheDurationSeconds, reuseLimit, precacheCount, clientBlacklistText);
+            ApplySettings(follow302, clientBlacklistText);
             if (harmony == null)
             {
                 return;
@@ -273,9 +255,7 @@ namespace MediaInfoKeeper.Patch
                 }
 
                 var originalUrl = mediaSource.Path;
-                var cacheKey = BuildRedirectCacheKey(itemId, requestContext?.UserAgent);
-                var playSessionId = GetPlaySessionId(requestContext);
-                var redirectUrl = ResolveRedirectUrl(cacheKey, playSessionId, originalUrl, requestContext?.UserAgent);
+                var redirectUrl = ResolveRedirectUrl(originalUrl, requestContext?.UserAgent);
                 var decodedRedirectUrl = redirectUrl;
                 if (!string.IsNullOrWhiteSpace(decodedRedirectUrl))
                 {
@@ -290,11 +270,9 @@ namespace MediaInfoKeeper.Patch
 
                 __result = Task.FromResult(resultFactory.GetRedirectResult(redirectUrl));
                 logger?.Info(
-                    "StrmVideoDirectRedirect : itemId={0}, cacheKey={1}, finalUrl={2}",
+                    "StrmVideoDirectRedirect : itemId={0}, finalUrl={1}",
                     itemId,
-                    cacheKey,
                     decodedRedirectUrl);
-                QueueUpcomingEpisodeRedirectPrefetch(itemId, requestContext?.UserAgent, playSessionId);
                 DisposeState(state);
                 return false;
             }
@@ -440,37 +418,19 @@ namespace MediaInfoKeeper.Patch
         }
 
         /// <summary>应用运行时配置，并在必要时清理缓存与预加载去重状态。</summary>
-        private static void ApplySettings(bool follow302, int cacheDurationSeconds, int reuseLimit, int precacheCount, string clientBlacklistText)
+        private static void ApplySettings(bool follow302, string clientBlacklistText)
         {
             followRedirect302 = follow302;
-            redirectUrlCacheDurationSeconds = cacheDurationSeconds;
-            redirectUrlCacheReuseLimit = reuseLimit;
-            redirectUrlPrecacheCount = precacheCount;
             clientBlacklist = ParseClientBlacklist(clientBlacklistText);
-
-            if (!followRedirect302 || redirectUrlCacheDurationSeconds == 0)
-            {
-                RedirectUrlCache.Clear();
-                RedirectPrefetchSessions.Clear();
-                return;
-            }
-
-            TrimRedirectUrlCacheIfNeeded();
-            TrimPrefetchSessionsIfNeeded();
         }
 
-        /// <summary>解析用于 302 返回的直链地址；开启跟踪时优先命中缓存，否则主动探测最终地址。</summary>
-        private static string ResolveRedirectUrl(string cacheKey, string playSessionId, string url, string userAgent)
+        /// <summary>解析用于 302 返回的直链地址；开启跟踪时主动探测最终地址，否则直接返回原始 URL。</summary>
+        private static string ResolveRedirectUrl(string url, string userAgent)
         {
             var normalizedUrl = NormalizeRedirectUrl(url);
             if (!followRedirect302)
             {
                 return normalizedUrl;
-            }
-
-            if (GetCachedRedirectUrl(cacheKey, playSessionId, out var cachedRedirectUrl))
-            {
-                return cachedRedirectUrl;
             }
 
             var httpClient = Plugin.SharedHttpClient;
@@ -512,191 +472,7 @@ namespace MediaInfoKeeper.Patch
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(resolvedUrl))
-            {
-                CacheRedirectUrl(cacheKey, resolvedUrl);
-                return resolvedUrl;
-            }
-
-            CacheRedirectUrl(cacheKey, normalizedUrl);
-            return normalizedUrl;
-        }
-
-        /// <summary>尝试从内存直链缓存中复用已解析地址，并更新访问状态供 LRU 淘汰使用。</summary>
-        private static bool GetCachedRedirectUrl(string cacheKey, string playSessionId, out string redirectUrl)
-        {
-            redirectUrl = null;
-            if (redirectUrlCacheDurationSeconds == 0)
-            {
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(cacheKey))
-            {
-                return false;
-            }
-
-            if (!RedirectUrlCache.TryGetValue(cacheKey, out var entry))
-            {
-                return false;
-            }
-
-            if (!IsExpired(entry.ExpiresAtUtc) &&
-                !string.IsNullOrWhiteSpace(entry.RedirectUrl) &&
-                entry.Reuse(redirectUrlCacheReuseLimit, playSessionId, out redirectUrl))
-            {
-                return true;
-            }
-
-            RedirectUrlCache.TryRemove(cacheKey, out _);
-            return false;
-        }
-
-        /// <summary>写入直链缓存，并按容量上限执行 LRU 裁剪。</summary>
-        private static void CacheRedirectUrl(string cacheKey, string redirectUrl)
-        {
-            if (redirectUrlCacheDurationSeconds == 0 ||
-                string.IsNullOrWhiteSpace(cacheKey) ||
-                string.IsNullOrWhiteSpace(redirectUrl) ||
-                !TryGetRedirectUrlExpiry(redirectUrl, out var expiresAtUtc))
-            {
-                return;
-            }
-
-            RedirectUrlCache[cacheKey] = new RedirectUrlCacheEntry(DateTimeOffset.UtcNow, expiresAtUtc, redirectUrl);
-            TrimRedirectUrlCacheIfNeeded();
-        }
-
-        /// <summary>判断缓存项是否已超过 URL 自带的 t 失效时间。</summary>
-        private static bool IsExpired(DateTimeOffset expiresAtUtc)
-        {
-            return DateTimeOffset.UtcNow >= expiresAtUtc;
-        }
-
-        /// <summary>从直链 URL 查询串中提取 Unix 时间戳参数 t，作为缓存失效时间。</summary>
-        private static bool TryGetRedirectUrlExpiry(string redirectUrl, out DateTimeOffset expiresAtUtc)
-        {
-            expiresAtUtc = default;
-            if (string.IsNullOrWhiteSpace(redirectUrl) ||
-                !Uri.TryCreate(redirectUrl, UriKind.Absolute, out var uri))
-            {
-                return false;
-            }
-
-            var rawQuery = uri.Query;
-            if (string.IsNullOrEmpty(rawQuery))
-            {
-                return false;
-            }
-
-            var query = rawQuery[0] == '?' ? rawQuery.Substring(1) : rawQuery;
-            foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                var separatorIndex = pair.IndexOf('=');
-                var rawKey = separatorIndex >= 0 ? pair.Substring(0, separatorIndex) : pair;
-                if (!string.Equals(Uri.UnescapeDataString(rawKey), "t", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                var rawValue = separatorIndex >= 0 && separatorIndex + 1 < pair.Length
-                    ? pair.Substring(separatorIndex + 1)
-                    : string.Empty;
-                if (!long.TryParse(Uri.UnescapeDataString(rawValue), out var unixSeconds) || unixSeconds <= 0)
-                {
-                    return false;
-                }
-
-                try
-                {
-                    expiresAtUtc = DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
-                    return expiresAtUtc > DateTimeOffset.UtcNow;
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return false;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>按最近最少使用原则裁剪直链缓存，只保留最近访问过的热点项。</summary>
-        private static void TrimRedirectUrlCacheIfNeeded()
-        {
-            if (RedirectUrlCache.Count <= RedirectUrlCacheCapacity)
-            {
-                return;
-            }
-
-            lock (RedirectUrlCacheTrimLock)
-            {
-                while (RedirectUrlCache.Count > RedirectUrlCacheCapacity)
-                {
-                    string leastRecentlyUsedKey = null;
-                    RedirectUrlCacheEntry leastRecentlyUsedEntry = null;
-
-                    foreach (var pair in RedirectUrlCache)
-                    {
-                        if (leastRecentlyUsedEntry == null || pair.Value.LastAccessedAt < leastRecentlyUsedEntry.LastAccessedAt)
-                        {
-                            leastRecentlyUsedKey = pair.Key;
-                            leastRecentlyUsedEntry = pair.Value;
-                        }
-                    }
-
-                    if (leastRecentlyUsedKey == null)
-                    {
-                        break;
-                    }
-
-                    RedirectUrlCache.TryRemove(leastRecentlyUsedKey, out _);
-                }
-            }
-        }
-
-        /// <summary>基于条目与客户端 UA 构建直链缓存键，避免不同客户端误复用。</summary>
-        private static string BuildRedirectCacheKey(string itemId, string userAgent)
-        {
-            return string.Concat(
-                itemId?.Trim() ?? string.Empty,
-                "|",
-                userAgent?.Trim() ?? string.Empty);
-        }
-
-        /// <summary>从原始请求 URL 中提取 PlaySessionId，用于直链复用与预加载去重。</summary>
-        private static string GetPlaySessionId(IRequest requestContext)
-        {
-            var rawUrl = requestContext?.RawUrl;
-            if (string.IsNullOrWhiteSpace(rawUrl))
-            {
-                return null;
-            }
-
-            var playSessionIdPrefix = "PlaySessionId=";
-            var playSessionIdIndex = rawUrl.IndexOf(playSessionIdPrefix, StringComparison.OrdinalIgnoreCase);
-            if (playSessionIdIndex < 0)
-            {
-                return null;
-            }
-
-            var valueStartIndex = playSessionIdIndex + playSessionIdPrefix.Length;
-            if (valueStartIndex >= rawUrl.Length)
-            {
-                return null;
-            }
-
-            var valueEndIndex = rawUrl.IndexOf('&', valueStartIndex);
-            var encodedValue = valueEndIndex >= 0
-                ? rawUrl.Substring(valueStartIndex, valueEndIndex - valueStartIndex)
-                : rawUrl.Substring(valueStartIndex);
-
-            if (string.IsNullOrWhiteSpace(encodedValue))
-            {
-                return null;
-            }
-
-            return Uri.UnescapeDataString(encodedValue).Trim();
+            return string.IsNullOrWhiteSpace(resolvedUrl) ? normalizedUrl : resolvedUrl;
         }
 
         private static bool IsClientBlocked(IRequest requestContext)
@@ -794,154 +570,6 @@ namespace MediaInfoKeeper.Patch
             return builder.Uri.AbsoluteUri;
         }
 
-        /// <summary>当前集命中 302 后，后台预热后续几集的直链解析结果。</summary>
-        private static void QueueUpcomingEpisodeRedirectPrefetch(string currentItemId, string userAgent, string playSessionId)
-        {
-            if (!followRedirect302 || redirectUrlPrecacheCount <= 0 || string.IsNullOrWhiteSpace(currentItemId))
-            {
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(playSessionId))
-            {
-                return;
-            }
-
-            var currentEpisode = Plugin.LibraryManager?.GetItemById(currentItemId) as Episode;
-            var nextEpisodeIds = Plugin.LibraryService?.NextEpisodesId(currentEpisode, redirectUrlPrecacheCount);
-            if (nextEpisodeIds == null || nextEpisodeIds.Count == 0)
-            {
-                return;
-            }
-
-            var normalizedPlaySessionId = playSessionId.Trim();
-            if (!MarkPrefetchSession(normalizedPlaySessionId))
-            {
-                return;
-            }
-
-            var jobKey = string.Concat(
-                currentItemId.Trim(),
-                "|",
-                normalizedPlaySessionId,
-                "|",
-                userAgent?.Trim() ?? string.Empty);
-            if (!RedirectPrefetchJobs.TryAdd(jobKey, 0))
-            {
-                return;
-            }
-
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    foreach (var nextEpisodeId in nextEpisodeIds)
-                    {
-                        var nextEpisode = Plugin.LibraryManager?.GetItemById(nextEpisodeId) as Episode;
-                        if (!ReadEpisodeOriginalUrl(nextEpisode, out var originalUrl))
-                        {
-                            continue;
-                        }
-
-                        var nextItemId = nextEpisode.GetClientId();
-                        var cacheKey = BuildRedirectCacheKey(nextItemId, userAgent);
-                        var redirectUrl = ResolveRedirectUrl(cacheKey, normalizedPlaySessionId, originalUrl, userAgent);
-                        logger?.Info(
-                            "StrmVideoDirectRedirect 预缓存: itemId={0}, episode={1}, finalUrl={2}",
-                            nextItemId,
-                            nextEpisode.FileName ?? nextEpisode.Name,
-                            redirectUrl);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger?.Warn("StrmVideoDirectRedirect 预缓存失败: itemId={0}, error={1}", currentItemId, ex.Message);
-                }
-
-                RedirectPrefetchJobs.TryRemove(jobKey, out _);
-            });
-        }
-
-        /// <summary>登记已执行过预加载的播放会话，避免同一会话重复触发。</summary>
-        private static bool MarkPrefetchSession(string playSessionId)
-        {
-            TrimPrefetchSessionsIfNeeded();
-
-            var now = DateTimeOffset.UtcNow;
-            if (RedirectPrefetchSessions.TryGetValue(playSessionId, out var markedAt) &&
-                now - markedAt <= RedirectPrefetchSessionRetention)
-            {
-                return false;
-            }
-
-            RedirectPrefetchSessions[playSessionId] = now;
-            return true;
-        }
-
-        /// <summary>按过期时间与 FIFO 顺序裁剪会话去重缓存，避免状态无限增长。</summary>
-        private static void TrimPrefetchSessionsIfNeeded()
-        {
-            if (RedirectPrefetchSessions.Count == 0)
-            {
-                return;
-            }
-
-            var expireBefore = DateTimeOffset.UtcNow - RedirectPrefetchSessionRetention;
-            foreach (var pair in RedirectPrefetchSessions)
-            {
-                if (pair.Value < expireBefore)
-                {
-                    RedirectPrefetchSessions.TryRemove(pair.Key, out _);
-                }
-            }
-
-            if (RedirectPrefetchSessions.Count <= RedirectPrefetchSessionCapacity)
-            {
-                return;
-            }
-
-            foreach (var pair in RedirectPrefetchSessions.OrderBy(pair => pair.Value).Take(RedirectPrefetchSessions.Count - RedirectPrefetchSessionCapacity))
-            {
-                RedirectPrefetchSessions.TryRemove(pair.Key, out _);
-            }
-        }
-
-        /// <summary>读取剧集 .strm 的首个有效 http(s) 行，作为预加载时的原始地址。</summary>
-        private static bool ReadEpisodeOriginalUrl(Episode episode, out string originalUrl)
-        {
-            originalUrl = null;
-            var strmPath = episode?.Path;
-            if (!LibraryService.IsFileShortcut(strmPath) || !File.Exists(strmPath))
-            {
-                return false;
-            }
-
-            try
-            {
-                var line = File.ReadLines(strmPath)
-                    .Select(l => l?.Trim())
-                    .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#", StringComparison.Ordinal));
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    return false;
-                }
-
-                if (!Uri.TryCreate(line, UriKind.Absolute, out var uri) ||
-                    (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
-                     !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return false;
-                }
-
-                originalUrl = NormalizeRedirectUrl(uri.AbsoluteUri);
-                return !string.IsNullOrWhiteSpace(originalUrl);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static T GetPropertyValue<T>(object instance, string propertyName)
         {
             var value = instance?.GetType()
@@ -961,66 +589,6 @@ namespace MediaInfoKeeper.Patch
             instance?.GetType()
                 .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 ?.SetValue(instance, value);
-        }
-
-        private sealed class RedirectUrlCacheEntry
-        {
-            private int reuseCount;
-            private string lastPlaySessionId;
-            private long lastAccessedTicks;
-
-            public RedirectUrlCacheEntry(DateTimeOffset createdAt, DateTimeOffset expiresAtUtc, string redirectUrl)
-            {
-                CreatedAt = createdAt;
-                ExpiresAtUtc = expiresAtUtc;
-                RedirectUrl = redirectUrl;
-                lastAccessedTicks = createdAt.UtcTicks;
-            }
-
-            public DateTimeOffset CreatedAt { get; }
-
-            public DateTimeOffset ExpiresAtUtc { get; }
-
-            public string RedirectUrl { get; }
-
-            public DateTimeOffset LastAccessedAt => new DateTimeOffset(Interlocked.Read(ref lastAccessedTicks), TimeSpan.Zero);
-
-            public bool Reuse(int reuseLimit, string playSessionId, out string redirectUrl)
-            {
-                redirectUrl = null;
-                if (reuseLimit <= 0)
-                {
-                    return false;
-                }
-
-                if (!string.IsNullOrWhiteSpace(playSessionId) &&
-                    string.Equals(lastPlaySessionId, playSessionId, StringComparison.Ordinal))
-                {
-                    Touch();
-                    redirectUrl = RedirectUrl;
-                    return true;
-                }
-
-                var currentReuseCount = Interlocked.Increment(ref reuseCount);
-                if (currentReuseCount > reuseLimit)
-                {
-                    return false;
-                }
-
-                if (!string.IsNullOrWhiteSpace(playSessionId))
-                {
-                    lastPlaySessionId = playSessionId;
-                }
-
-                Touch();
-                redirectUrl = RedirectUrl;
-                return true;
-            }
-
-            private void Touch()
-            {
-                Interlocked.Exchange(ref lastAccessedTicks, DateTimeOffset.UtcNow.UtcTicks);
-            }
         }
 
     }

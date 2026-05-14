@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -34,13 +33,7 @@ namespace MediaInfoKeeper.Patch
         private static Type streamRequestType;
         private static Type streamStateType;
         private static Type progressiveAudioRequestType;
-        private static readonly ConcurrentDictionary<string, RedirectUrlCacheEntry> RedirectUrlCache =
-            new ConcurrentDictionary<string, RedirectUrlCacheEntry>(StringComparer.Ordinal);
-        private static readonly object RedirectUrlCacheTrimLock = new object();
-        private const int RedirectUrlCacheCapacity = 128;
         private static bool followRedirect302 = true;
-        private static int redirectUrlCacheDurationSeconds = 3600;
-        private static int redirectUrlCacheReuseLimit = 5;
         private static string[] clientBlacklist = Array.Empty<string>();
 
         public static bool IsReady => harmony != null
@@ -53,20 +46,17 @@ namespace MediaInfoKeeper.Patch
             ILogger pluginLogger,
             bool enabled,
             bool follow302,
-            int cacheDurationSeconds,
-            int reuseLimit,
-            int precacheCount,
             string clientBlacklistText)
         {
             if (harmony != null)
             {
-                Configure(enabled, follow302, cacheDurationSeconds, reuseLimit, precacheCount, clientBlacklistText);
+                Configure(enabled, follow302, clientBlacklistText);
                 return;
             }
 
             logger = pluginLogger;
             isEnabled = enabled;
-            ApplySettings(follow302, cacheDurationSeconds, reuseLimit, clientBlacklistText);
+            ApplySettings(follow302, clientBlacklistText);
 
             try
             {
@@ -168,10 +158,10 @@ namespace MediaInfoKeeper.Patch
             }
         }
 
-        public static void Configure(bool enabled, bool follow302, int cacheDurationSeconds, int reuseLimit, int precacheCount, string clientBlacklistText)
+        public static void Configure(bool enabled, bool follow302, string clientBlacklistText)
         {
             isEnabled = enabled;
-            ApplySettings(follow302, cacheDurationSeconds, reuseLimit, clientBlacklistText);
+            ApplySettings(follow302, clientBlacklistText);
             if (harmony == null)
             {
                 return;
@@ -267,13 +257,11 @@ namespace MediaInfoKeeper.Patch
                 }
 
                 var originalUrl = mediaSource.Path;
-                var cacheKey = BuildRedirectCacheKey(itemId, requestContext?.UserAgent);
-                var redirectUrl = ResolveRedirectUrl(cacheKey, originalUrl, requestContext?.UserAgent);
+                var redirectUrl = ResolveRedirectUrl(originalUrl, requestContext?.UserAgent);
                 __result = Task.FromResult(resultFactory.GetRedirectResult(redirectUrl));
                 logger?.Info(
-                    "StrmAudioDirectRedirect : itemId={0}, cacheKey={1}, finalUrl={2}",
+                    "StrmAudioDirectRedirect : itemId={0}, finalUrl={1}",
                     itemId,
-                    cacheKey,
                     redirectUrl);
                 DisposeState(state);
                 return false;
@@ -392,33 +380,18 @@ namespace MediaInfoKeeper.Patch
             disposeStateMethod?.Invoke(state, new object[] { true, true });
         }
 
-        private static void ApplySettings(bool follow302, int cacheDurationSeconds, int reuseLimit, string clientBlacklistText)
+        private static void ApplySettings(bool follow302, string clientBlacklistText)
         {
             followRedirect302 = follow302;
-            redirectUrlCacheDurationSeconds = cacheDurationSeconds;
-            redirectUrlCacheReuseLimit = reuseLimit;
             clientBlacklist = ParseClientBlacklist(clientBlacklistText);
-
-            if (!followRedirect302 || redirectUrlCacheDurationSeconds == 0)
-            {
-                RedirectUrlCache.Clear();
-                return;
-            }
-
-            TrimRedirectUrlCacheIfNeeded();
         }
 
-        private static string ResolveRedirectUrl(string cacheKey, string url, string userAgent)
+        private static string ResolveRedirectUrl(string url, string userAgent)
         {
             var normalizedUrl = NormalizeRedirectUrl(url);
             if (!followRedirect302)
             {
                 return normalizedUrl;
-            }
-
-            if (GetCachedRedirectUrl(cacheKey, out var cachedRedirectUrl))
-            {
-                return cachedRedirectUrl;
             }
 
             var httpClient = Plugin.SharedHttpClient;
@@ -460,155 +433,7 @@ namespace MediaInfoKeeper.Patch
                 }
             }
 
-            CacheRedirectUrl(cacheKey, string.IsNullOrWhiteSpace(resolvedUrl) ? normalizedUrl : resolvedUrl);
             return string.IsNullOrWhiteSpace(resolvedUrl) ? normalizedUrl : resolvedUrl;
-        }
-
-        private static bool GetCachedRedirectUrl(string cacheKey, out string redirectUrl)
-        {
-            redirectUrl = null;
-            if (redirectUrlCacheDurationSeconds == 0 || string.IsNullOrWhiteSpace(cacheKey))
-            {
-                return false;
-            }
-
-            if (!RedirectUrlCache.TryGetValue(cacheKey, out var entry))
-            {
-                return false;
-            }
-
-            if (entry.IsExpired())
-            {
-                RedirectUrlCache.TryRemove(cacheKey, out _);
-                return false;
-            }
-
-            entry.Touch();
-            if (redirectUrlCacheReuseLimit > 0 && entry.ReuseCount > redirectUrlCacheReuseLimit)
-            {
-                RedirectUrlCache.TryRemove(cacheKey, out _);
-                return false;
-            }
-
-            redirectUrl = entry.Url;
-            return !string.IsNullOrWhiteSpace(redirectUrl);
-        }
-
-        private static void CacheRedirectUrl(string cacheKey, string redirectUrl)
-        {
-            if (string.IsNullOrWhiteSpace(cacheKey) ||
-                string.IsNullOrWhiteSpace(redirectUrl) ||
-                !TryGetRedirectUrlExpiry(redirectUrl, out var expiresAtUtc))
-            {
-                return;
-            }
-
-            RedirectUrlCache[cacheKey] = new RedirectUrlCacheEntry(redirectUrl, expiresAtUtc);
-            TrimRedirectUrlCacheIfNeeded();
-        }
-
-        private static bool TryGetRedirectUrlExpiry(string redirectUrl, out DateTimeOffset expiresAtUtc)
-        {
-            expiresAtUtc = default;
-            if (string.IsNullOrWhiteSpace(redirectUrl) ||
-                !Uri.TryCreate(redirectUrl, UriKind.Absolute, out var uri))
-            {
-                return false;
-            }
-
-            var rawQuery = uri.Query;
-            if (string.IsNullOrEmpty(rawQuery))
-            {
-                return false;
-            }
-
-            var query = rawQuery[0] == '?' ? rawQuery.Substring(1) : rawQuery;
-            foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                var separatorIndex = pair.IndexOf('=');
-                var rawKey = separatorIndex >= 0 ? pair.Substring(0, separatorIndex) : pair;
-                if (!string.Equals(Uri.UnescapeDataString(rawKey), "t", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                var rawValue = separatorIndex >= 0 && separatorIndex + 1 < pair.Length
-                    ? pair.Substring(separatorIndex + 1)
-                    : string.Empty;
-                if (!long.TryParse(Uri.UnescapeDataString(rawValue), out var unixSeconds) || unixSeconds <= 0)
-                {
-                    return false;
-                }
-
-                try
-                {
-                    expiresAtUtc = DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
-                    return expiresAtUtc > DateTimeOffset.UtcNow;
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return false;
-                }
-            }
-
-            return false;
-        }
-
-        private static void TrimRedirectUrlCacheIfNeeded()
-        {
-            if (RedirectUrlCache.Count <= RedirectUrlCacheCapacity)
-            {
-                return;
-            }
-
-            lock (RedirectUrlCacheTrimLock)
-            {
-                if (RedirectUrlCache.Count <= RedirectUrlCacheCapacity)
-                {
-                    return;
-                }
-
-                foreach (var entry in RedirectUrlCache)
-                {
-                    if (entry.Value.IsExpired())
-                    {
-                        RedirectUrlCache.TryRemove(entry.Key, out _);
-                    }
-                }
-
-                while (RedirectUrlCache.Count > RedirectUrlCacheCapacity)
-                {
-                    string oldestKey = null;
-                    DateTimeOffset oldestAccess = DateTimeOffset.MaxValue;
-                    foreach (var entry in RedirectUrlCache)
-                    {
-                        if (entry.Value.LastAccessUtc >= oldestAccess)
-                        {
-                            continue;
-                        }
-
-                        oldestKey = entry.Key;
-                        oldestAccess = entry.Value.LastAccessUtc;
-                    }
-
-                    if (oldestKey == null)
-                    {
-                        break;
-                    }
-
-                    RedirectUrlCache.TryRemove(oldestKey, out _);
-                }
-            }
-        }
-
-        private static string BuildRedirectCacheKey(string itemId, string userAgent)
-        {
-            if (string.IsNullOrWhiteSpace(itemId))
-            {
-                return null;
-            }
-
-            return string.Concat(itemId, "|", userAgent ?? string.Empty);
         }
 
         private static string NormalizeRedirectUrl(string url)
@@ -688,36 +513,6 @@ namespace MediaInfoKeeper.Patch
             if (property?.CanWrite == true)
             {
                 property.SetValue(instance, value);
-            }
-        }
-
-        private sealed class RedirectUrlCacheEntry
-        {
-            private readonly DateTimeOffset expiresAtUtc;
-
-            public RedirectUrlCacheEntry(string url, DateTimeOffset expiresAtUtc)
-            {
-                Url = url;
-                LastAccessUtc = DateTimeOffset.UtcNow;
-                ReuseCount = 0;
-                this.expiresAtUtc = expiresAtUtc;
-            }
-
-            public string Url { get; }
-
-            public DateTimeOffset LastAccessUtc { get; private set; }
-
-            public int ReuseCount { get; private set; }
-
-            public bool IsExpired()
-            {
-                return expiresAtUtc <= DateTimeOffset.UtcNow;
-            }
-
-            public void Touch()
-            {
-                LastAccessUtc = DateTimeOffset.UtcNow;
-                ReuseCount++;
             }
         }
     }

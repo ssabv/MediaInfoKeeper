@@ -93,15 +93,6 @@ namespace MediaInfoKeeper.Options
         [VisibleCondition(nameof(EnableStrmDirectRedirect), SimpleCondition.IsTrue)]
         public string StrmAudioDirectRedirectClientBlacklist { get; set; } = "Emby Web";
         
-        [Browsable(false)]
-        public int StrmDirectRedirectCacheDurationSeconds { get; set; } = 5400;
-
-        [Browsable(false)]
-        public int StrmDirectRedirectReuseLimit { get; set; } = 3;
-
-        [Browsable(false)]
-        public int StrmDirectRedirectPrecacheCount { get; set; } = 1;
-        
         [DisplayName("启用深度删除")]
         [Description("删除媒体时，尝试级联删除 STRM 或软链接目标文件及相关文件和空目录。")]
         public bool EnableDeepDelete { get; set; } = false;
