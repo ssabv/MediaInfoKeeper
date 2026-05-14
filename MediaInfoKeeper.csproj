@@ -11,12 +11,9 @@
     <TokenizerBundle Condition="'$(TokenizerBundle)' == ''">full</TokenizerBundle>
   </PropertyGroup>
   <Target Name="ValidateTokenizerBuildConfiguration" BeforeTargets="PrepareForBuild">
-    <Error Condition="'$(TokenizerBundle)' != 'full' and '$(TokenizerBundle)' != 'single-rid'"
-           Text="TokenizerBundle must be either 'full' or 'single-rid'." />
-    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == ''"
-           Text="TokenizerRid must be specified when TokenizerBundle is 'single-rid'." />
-    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' != 'win-x64' and '$(TokenizerRid)' != 'win-arm64' and '$(TokenizerRid)' != 'linux-x64' and '$(TokenizerRid)' != 'linux-arm64' and '$(TokenizerRid)' != 'osx-x64' and '$(TokenizerRid)' != 'osx-arm64'"
-           Text="TokenizerRid must be one of: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
+    <Error Condition="'$(TokenizerBundle)' != 'full' and '$(TokenizerBundle)' != 'single-rid'" Text="TokenizerBundle must be either 'full' or 'single-rid'." />
+    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == ''" Text="TokenizerRid must be specified when TokenizerBundle is 'single-rid'." />
+    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' != 'win-x64' and '$(TokenizerRid)' != 'win-arm64' and '$(TokenizerRid)' != 'linux-x64' and '$(TokenizerRid)' != 'linux-arm64' and '$(TokenizerRid)' != 'osx-x64' and '$(TokenizerRid)' != 'osx-arm64'" Text="TokenizerRid must be one of: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
   </Target>
   <Target Name="PrepareReleaseTagMetadata" BeforeTargets="GetAssemblyAttributes" Condition="'$(ReleaseTag)' != ''">
     <ItemGroup Condition="'$(ReleaseTag)' != ''">
@@ -63,6 +60,7 @@
     <EmbeddedResource Include="Resources\\ede.js" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="DiscUtils.Udf" Version="0.16.13" />
     <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.90" />
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
     <PackageReference Include="SQLitePCL.pretty.core" Version="1.2.2" />
@@ -88,6 +86,11 @@
     <ItemGroup>
       <IlRepackInput Include="$(TargetDir)0Harmony.dll" Condition="Exists('$(TargetDir)0Harmony.dll')" />
       <IlRepackInput Include="$(TinyPinyinAssembly)" Condition="Exists('$(TinyPinyinAssembly)')" />
+      <!-- DiscUtils.Udf brings these runtime assemblies transitively; merge them to avoid Emby plugin load failures. -->
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Core.dll" Condition="Exists('$(TargetDir)DiscUtils.Core.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Iso9660.dll" Condition="Exists('$(TargetDir)DiscUtils.Iso9660.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Streams.dll" Condition="Exists('$(TargetDir)DiscUtils.Streams.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Udf.dll" Condition="Exists('$(TargetDir)DiscUtils.Udf.dll')" />
     </ItemGroup>
     <Exec Command="$(IlRepackExe) /out:$(TargetDir)$(TargetFileName) $(TargetPath) @(IlRepackInput->'%(Identity)', ' ') /lib:$(TargetDir)" />
   </Target>

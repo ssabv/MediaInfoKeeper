@@ -147,6 +147,54 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "IsoMountedProbeInput",
+                Initialize = _ => IsoMountedProbeInput.Initialize(logger, true),
+                Configure = _ => IsoMountedProbeInput.Configure(true),
+                IsEnabled = options => IsPluginEnabled(options),
+                IsReady = () => IsoMountedProbeInput.IsReady,
+                Notes = () => "mount iso before probe"
+            });
+
+            registrations.Add(new PatchRegistration
+            {
+                Name = "IsoProbeSupport",
+                Initialize = _ => IsoProbeSupport.Initialize(logger, true),
+                Configure = _ => IsoProbeSupport.Configure(true),
+                IsEnabled = options => IsPluginEnabled(options),
+                IsReady = () => IsoProbeSupport.IsReady,
+                Notes = () =>
+                {
+                    var mediaInfoOptions = Plugin.Instance?.Options?.GetMediaInfoOptions();
+                    if (string.IsNullOrWhiteSpace(mediaInfoOptions?.CustomFfprobePath))
+                    {
+                        return "inactive";
+                    }
+
+                    return null;
+                }
+            });
+
+            registrations.Add(new PatchRegistration
+            {
+                Name = "IsoFfprobePath",
+                Initialize = _ => IsoFfprobePath.Initialize(logger, true),
+                Configure = _ => IsoFfprobePath.Configure(true),
+                IsEnabled = options => IsPluginEnabled(options),
+                IsReady = () => IsoFfprobePath.IsReady,
+                Notes = () =>
+                {
+                    var mediaInfoOptions = Plugin.Instance?.Options?.GetMediaInfoOptions();
+                    if (string.IsNullOrWhiteSpace(mediaInfoOptions?.CustomFfprobePath))
+                    {
+                        return "inactive";
+                    }
+
+                    return null;
+                }
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "StrmMediaInfoGuard",
                 Initialize = _ => MediaInfoClearGuard.Initialize(logger, true),
                 Configure = _ => MediaInfoClearGuard.Configure(true),

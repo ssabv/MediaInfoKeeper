@@ -72,8 +72,11 @@ namespace MediaInfoKeeper.Store
         private List<ChapterInfo> CreateForPersist(BaseItem item)
         {
             var chapters = this.itemRepository.GetChapters(item) ?? new List<ChapterInfo>();
+            var hasIndexedChapters = chapters.Any(chapter => chapter != null && chapter.ChapterIndex > 0);
             chapters = chapters
-                .Where(chapter => chapter != null && chapter.MarkerType != MarkerType.Chapter)
+                .Where(chapter =>
+                    chapter != null &&
+                    (chapter.MarkerType != MarkerType.Chapter || hasIndexedChapters))
                 .ToList();
 
             foreach (var chapter in chapters)
