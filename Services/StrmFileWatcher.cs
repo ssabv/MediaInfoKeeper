@@ -8,7 +8,7 @@ using MediaBrowser.Model.Logging;
 namespace MediaInfoKeeper.Services
 {
     /// <summary>
-    /// 监听媒体库路径下的新入库 .strm 与视频文件，仅记录 Created 事件日志。
+    /// 监听媒体库路径下的新入库 .strm 与视频文件，记录 Created 与 Changed 事件日志。
     /// </summary>
     public sealed class StrmFileWatcher : IDisposable
     {
@@ -90,12 +90,13 @@ namespace MediaInfoKeeper.Services
                         var watcher = new FileSystemWatcher(root, "*")
                         {
                             IncludeSubdirectories = true,
-                            NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
+                            NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.LastWrite,
                             InternalBufferSize = 64 * 1024,
                             EnableRaisingEvents = true
                         };
 
                         watcher.Created += (sender, args) => OnCreated(args?.FullPath);
+                        watcher.Changed += (sender, args) => OnModified(args?.FullPath);
                         this.watchers[root] = watcher;
                     }
                     catch (Exception ex)
@@ -147,6 +148,19 @@ namespace MediaInfoKeeper.Services
                     this.logger?.Error(ex.Message);
                 }
             }
+        }
+
+        /// <summary>
+        /// 记录文件内容修改事件。
+        /// </summary>
+        private void OnModified(string path)
+        {
+            if (!this.enabled || this.disposed || string.IsNullOrWhiteSpace(path) || !LibraryService.IsFileShortcut(path))
+            {
+                return;
+            }
+
+            this.logger?.Info($"{Path.GetFileName(path) ?? path} 内容修改");
         }
 
         public void Dispose()
