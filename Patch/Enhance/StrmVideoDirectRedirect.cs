@@ -269,10 +269,7 @@ namespace MediaInfoKeeper.Patch
                 }
 
                 __result = Task.FromResult(resultFactory.GetRedirectResult(redirectUrl));
-                logger?.Info(
-                    "StrmVideoDirectRedirect : itemId={0}, finalUrl={1}",
-                    itemId,
-                    decodedRedirectUrl);
+                logger?.Info("StrmVideoDirectRedirect: itemId={0}, finalUrl={1}", itemId, decodedRedirectUrl);
                 DisposeState(state);
                 return false;
             }

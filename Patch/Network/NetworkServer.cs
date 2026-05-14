@@ -239,7 +239,17 @@ namespace MediaInfoKeeper.Patch
 
             if (enhanceOptions.EnableDetailedNetworkRequestLogging && !string.IsNullOrWhiteSpace(finalUrl))
             {
-                logger?.Info("{0} {1}", string.IsNullOrWhiteSpace(httpMethod) ? "UNKNOWN" : httpMethod, finalUrl);
+                var decodedUrl = finalUrl;
+                try
+                {
+                    decodedUrl = Uri.UnescapeDataString(finalUrl);
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                logger?.Info("{0} {1}", string.IsNullOrWhiteSpace(httpMethod) ? "UNKNOWN" : httpMethod, decodedUrl);
             }
         }
 
