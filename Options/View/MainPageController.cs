@@ -20,7 +20,6 @@ namespace MediaInfoKeeper.Options.View
             PluginInfo pluginInfo,
             MainPageOptionsStore mainPageOptionsStore,
             MediaInfoOptionsStore mediaInfoOptionsStore,
-            GitHubOptionsStore gitHubOptionsStore,
             IntroSkipOptionsStore introSkipOptionsStore,
             NetWorkOptionsStore netWorkOptionsStore,
             EnhanceOptionsStore enhanceOptionsStore,
@@ -55,12 +54,9 @@ namespace MediaInfoKeeper.Options.View
 
             this.tabPages.Add(new TabPageController(pluginInfo, nameof(EnhancePageView), "增强功能",
                 e => new EnhancePageView(pluginInfo, enhanceOptionsStore)));
-            
+
             this.tabPages.Add(new TabPageController(pluginInfo, nameof(NetWorkPageView), "网络代理",
                 e => new NetWorkPageView(pluginInfo, netWorkOptionsStore)));
-
-            this.tabPages.Add(new TabPageController(pluginInfo, nameof(GitHubPageView), "GitHub",
-                e => new GitHubPageView(pluginInfo, gitHubOptionsStore)));
 
 #if DEBUG
             this.tabPages.Add(new TabPageController(pluginInfo, nameof(DebugPageView), "Debug",

@@ -91,9 +91,10 @@ namespace MediaInfoKeeper.ScheduledTask
 
         private List<BaseItem> FetchRecentScopedItems()
         {
-            var limit = Math.Max(1, Plugin.Instance.Options.MainPage.ExtractRecentMediaInfoLimit);
+            var taskOptions = Plugin.Instance.Options.MainPage.ScheduledTasksEditor.ExtractRecentMediaInfo;
+            var limit = Math.Max(1, taskOptions.ExtractRecentMediaInfoLimit);
             var items = Plugin.LibraryService.FetchScheduledTaskLibraryItems(
-                Plugin.Instance.Options.MainPage.ExtractRecentMediaInfoLibraries,
+                taskOptions.ExtractRecentMediaInfoLibraries,
                 true,
                 limit,
                 includeAudio: true);

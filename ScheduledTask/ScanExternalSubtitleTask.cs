@@ -86,7 +86,7 @@ namespace MediaInfoKeeper.ScheduledTask
         private List<BaseItem> FetchScopedItems()
         {
             var items = Plugin.LibraryService.FetchScheduledTaskLibraryItems(
-                Plugin.Instance.Options.MainPage.ScanExternalSubtitleLibraries);
+                Plugin.Instance.Options.MainPage.ScheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries);
             this.logger.Info($"外挂字幕扫描条目数 {items.Count}");
             return items;
         }

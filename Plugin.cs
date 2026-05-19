@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using Emby.Web.GenericEdit.Elements;
 using MediaInfoKeeper.Common;
 using MediaInfoKeeper.Options;
@@ -107,6 +108,7 @@ namespace MediaInfoKeeper
         private static readonly object ReleaseHistoryLock = new object();
         private static DateTimeOffset releaseHistoryCheckedAt = DateTimeOffset.MinValue;
         private static string releaseHistoryBodyCache;
+        private static bool releaseHistoryRefreshInProgress;
         private static readonly TimeSpan LatestVersionCacheDuration = TimeSpan.FromMinutes(30);
         private const string GitHubReleaseHistoryUrl = "https://api.github.com/repos/honue/MediaInfoKeeper/releases?per_page=100&page=";
 
@@ -191,6 +193,7 @@ namespace MediaInfoKeeper
                 itemRepository);
 
             var initialOptions = this.Options;
+            PersistOptionsOnStartup(initialOptions);
             PatchManager.Initialize(this.logger, initialOptions);
 
             this.PlugginEnabled = initialOptions.MainPage?.PlugginEnabled ?? true;
@@ -242,7 +245,7 @@ namespace MediaInfoKeeper
             {
                 var options = this.OptionsStore.GetOptions();
                 options.MainPage ??= new MainPageOptions();
-                options.MainPage.SyncScheduledTaskEditorFromFields();
+                options.MainPage.PrepareScheduledTaskEditorForUi();
                 options.GetMediaInfoOptions();
                 return options;
             }
@@ -268,7 +271,7 @@ namespace MediaInfoKeeper
                     {
                         new MainPageController(this.applicationHost, this.GetPluginInfo(), this.MainPageOptionsStore,
                             this.MediaInfoOptionsStore,
-                            this.GitHubOptionsStore, this.IntroSkipOptionsStore, this.NetWorkOptionsStore,
+                            this.IntroSkipOptionsStore, this.NetWorkOptionsStore,
                             this.EnhanceOptionsStore, this.MetaDataOptionsStore
 #if DEBUG
                             , this.DebugOptionsStore
@@ -292,10 +295,10 @@ namespace MediaInfoKeeper
             options.GetMediaInfoOptions();
             options.IntroSkip ??= new IntroSkipOptions();
             options.GetNetWorkOptions();
-            options.GitHub ??= new GitHubOptions();
-            if (string.IsNullOrWhiteSpace(options.GitHub.UpdateChannel))
+            var effectiveUpdatePluginOptions = options.GetEffectiveUpdatePluginOptions();
+            if (string.IsNullOrWhiteSpace(effectiveUpdatePluginOptions.UpdateChannel))
             {
-                options.GitHub.UpdateChannel = GitHubOptions.UpdateChannelOption.Stable.ToString();
+                effectiveUpdatePluginOptions.UpdateChannel = MainPageOptions.UpdateChannelOption.Stable.ToString();
             }
             options.Enhance ??= new EnhanceOptions();
             options.MetaData ??= new MetaDataOptions();
@@ -304,16 +307,18 @@ namespace MediaInfoKeeper
 #endif
             options.IntroSkip.Initialize();
             options.GetMediaInfoOptions().Initialize();
-            options.GitHub.Initialize();
+            effectiveUpdatePluginOptions.Initialize();
             options.Enhance.Initialize();
             options.MetaData.Initialize();
 
             var list = LibraryService.BuildLibrarySelectOptions();
             options.MainPage.LibraryList = list;
-            options.MainPage.SyncScheduledTaskEditorFromFields();
             options.IntroSkip.LibraryList = list;
-            options.GitHub.VersionStatus = BuildVersionStatusItem();
-            options.GitHub.ReleaseHistoryBody = GetReleaseHistoryBody();
+            options.MainPage.UpdatePluginVersionStatus = BuildVersionStatusItem();
+            options.MainPage.UpdatePluginReleaseHistoryBody = string.IsNullOrWhiteSpace(releaseHistoryBodyCache)
+                ? "加载中"
+                : releaseHistoryBodyCache;
+            options.MainPage.PrepareScheduledTaskEditorForUi();
         }
 
         internal bool HandleOptionsSaving(PluginConfiguration options)
@@ -328,24 +333,11 @@ namespace MediaInfoKeeper
                 ? null
                 : CreateOptionSnapshot(BuildPersistedOptionLogEntries(persistedOptions));
 
-            options.MainPage.SyncFieldsFromScheduledTaskEditor();
-            options.MainPage.CatchupLibraries = NormalizeScopedLibraries(options.MainPage.CatchupLibraries);
-            options.MainPage.ScheduledTaskLibraries = NormalizeScopedLibraries(options.MainPage.ScheduledTaskLibraries);
-            options.MainPage.RefreshRecentMetadataLibraries = NormalizeScopedLibraries(options.MainPage.RefreshRecentMetadataLibraries);
-            options.MainPage.ScanRecentIntroLibraries = NormalizeScopedLibraries(options.MainPage.ScanRecentIntroLibraries);
-            options.MainPage.ExtractRecentMediaInfoLibraries = NormalizeScopedLibraries(options.MainPage.ExtractRecentMediaInfoLibraries);
-            options.MainPage.DownloadDanmuXmlLibraries = NormalizeScopedLibraries(options.MainPage.DownloadDanmuXmlLibraries);
-            options.MainPage.ExportExistingMediaInfoLibraries = NormalizeScopedLibraries(options.MainPage.ExportExistingMediaInfoLibraries);
-            options.MainPage.RestoreMediaInfoLibraries = NormalizeScopedLibraries(options.MainPage.RestoreMediaInfoLibraries);
-            options.MainPage.ScanExternalSubtitleLibraries = NormalizeScopedLibraries(options.MainPage.ScanExternalSubtitleLibraries);
-            if (options.IntroSkip != null)
+            FinalizeOptionsForPersistence(options);
+            var effectiveUpdatePluginOptions = options.GetEffectiveUpdatePluginOptions();
+            if (string.IsNullOrWhiteSpace(effectiveUpdatePluginOptions.UpdateChannel))
             {
-                options.IntroSkip.LibraryScope = NormalizeScopedLibraries(options.IntroSkip.LibraryScope);
-            }
-            options.GitHub ??= new GitHubOptions();
-            if (string.IsNullOrWhiteSpace(options.GitHub.UpdateChannel))
-            {
-                options.GitHub.UpdateChannel = GitHubOptions.UpdateChannelOption.Stable.ToString();
+                effectiveUpdatePluginOptions.UpdateChannel = MainPageOptions.UpdateChannelOption.Stable.ToString();
             }
             var netWorkOptions = options.GetNetWorkOptions();
             if (!LocalDiscoveryAddress.TryValidateConfiguredValue(
@@ -372,10 +364,10 @@ namespace MediaInfoKeeper
             options.MainPage ??= new MainPageOptions();
             options.GetMediaInfoOptions();
             options.IntroSkip ??= new IntroSkipOptions();
-            options.GitHub ??= new GitHubOptions();
-            if (string.IsNullOrWhiteSpace(options.GitHub.UpdateChannel))
+            var effectiveUpdatePluginOptions = options.GetEffectiveUpdatePluginOptions();
+            if (string.IsNullOrWhiteSpace(effectiveUpdatePluginOptions.UpdateChannel))
             {
-                options.GitHub.UpdateChannel = GitHubOptions.UpdateChannelOption.Stable.ToString();
+                effectiveUpdatePluginOptions.UpdateChannel = MainPageOptions.UpdateChannelOption.Stable.ToString();
             }
             options.Enhance ??= new EnhanceOptions();
             options.MetaData ??= new MetaDataOptions();
@@ -427,6 +419,62 @@ namespace MediaInfoKeeper
             safeOptions.GetMediaInfoOptions();
 
             StrmFileWatcher?.Configure(this.PlugginEnabled, safeOptions.MainPage.FileChangeRefreshDelaySeconds);
+        }
+
+        private void PersistOptionsOnStartup(PluginConfiguration options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            FinalizeOptionsForPersistence(options);
+            this.OptionsStore.SetOptionsSilently(options);
+        }
+
+        private void FinalizeOptionsForPersistence(PluginConfiguration options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            options.MainPage ??= new MainPageOptions();
+            options.MainPage.ScheduledTasksEditor ??= new MainPageOptions.ScheduledTaskEditorOptions();
+            options.GetMediaInfoOptions();
+            options.IntroSkip ??= new IntroSkipOptions();
+            options.GetNetWorkOptions();
+            options.Enhance ??= new EnhanceOptions();
+            options.MetaData ??= new MetaDataOptions();
+#if DEBUG
+            options.Debug ??= new DebugOptions();
+#endif
+
+            var effectiveUpdatePluginOptions = options.GetEffectiveUpdatePluginOptions();
+            effectiveUpdatePluginOptions.Initialize();
+            options.MainPage.ScheduledTasksEditor.UpdatePlugin = effectiveUpdatePluginOptions;
+
+            options.MainPage.CatchupLibraries = NormalizeScopedLibraries(options.MainPage.CatchupLibraries);
+            var scheduledTasksEditor = options.MainPage.ScheduledTasksEditor;
+            scheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries);
+            scheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries);
+            scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries);
+            scheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries);
+            scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries);
+            scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries);
+            scheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries);
+
+            if (options.IntroSkip != null)
+            {
+                options.IntroSkip.LibraryScope = NormalizeScopedLibraries(options.IntroSkip.LibraryScope);
+            }
         }
         private void LogOptionsSnapshot(PluginConfiguration options, string action)
         {
@@ -488,27 +536,35 @@ namespace MediaInfoKeeper
             options.Debug ??= new DebugOptions();
 #endif
             var netWorkOptions = options.GetNetWorkOptions();
+            options.MainPage.EnsureScheduledTaskEditors();
+            var scheduledTasksEditor = options.MainPage.ScheduledTasksEditor;
+            var refreshRecentMetadata = scheduledTasksEditor.RefreshRecentMetadata;
+            var scanRecentIntro = scheduledTasksEditor.ScanRecentIntro;
+            var extractRecentMediaInfo = scheduledTasksEditor.ExtractRecentMediaInfo;
+            var downloadDanmuXml = scheduledTasksEditor.DownloadDanmuXml;
+            var exportExistingMediaInfo = scheduledTasksEditor.ExportExistingMediaInfo;
+            var restoreMediaInfo = scheduledTasksEditor.RestoreMediaInfo;
+            var scanExternalSubtitle = scheduledTasksEditor.ScanExternalSubtitle;
 
             return new List<OptionLogEntry>
             {
                 new OptionLogEntry("Main.PlugginEnabled", "Main", "启用插件", options.MainPage.PlugginEnabled.ToString()),
                 new OptionLogEntry("Main.StrmFileWatcher", "Main", "启用 Strm 新入库监听", "开"),
                 new OptionLogEntry("Main.CatchupLibraries", "Main", "追更媒体库", FormatOptionValue(options.MainPage.CatchupLibraries)),
-                new OptionLogEntry("Main.ScheduledTaskLibraries", "Main", "计划任务媒体库", FormatOptionValue(options.MainPage.ScheduledTaskLibraries)),
-                new OptionLogEntry("Main.RefreshRecentMetadataLibraries", "Main", "刷新媒体元数据范围", FormatOptionValue(options.MainPage.RefreshRecentMetadataLibraries)),
-                new OptionLogEntry("Main.RefreshRecentMetadataDays", "Main", "刷新媒体元数据时间窗口", FormatTaskIntDisplayValue(options.MainPage.RefreshRecentMetadataDays, true)),
-                new OptionLogEntry("Main.RefreshMetadataMode", "Main", "刷新模式", options.MainPage.RefreshMetadataMode.ToString()),
-                new OptionLogEntry("Main.ReplaceExistingImages", "Main", "替换现有图像", options.MainPage.ReplaceExistingImages.ToString()),
-                new OptionLogEntry("Main.ReplaceExistingVideoPreviewThumbnails", "Main", "替换现有视频预览缩略图", options.MainPage.ReplaceExistingVideoPreviewThumbnails.ToString()),
-                new OptionLogEntry("Main.ScanRecentIntroLibraries", "Main", "扫描片头范围", FormatOptionValue(options.MainPage.ScanRecentIntroLibraries)),
-                new OptionLogEntry("Main.ScanRecentIntroLimit", "Main", "扫描片头最近条目数量", FormatTaskIntDisplayValue(options.MainPage.ScanRecentIntroLimit, false)),
-                new OptionLogEntry("Main.ExtractRecentMediaInfoLibraries", "Main", "提取媒体信息范围", FormatOptionValue(options.MainPage.ExtractRecentMediaInfoLibraries)),
-                new OptionLogEntry("Main.ExtractRecentMediaInfoLimit", "Main", "提取媒体信息最近条目数量", FormatTaskIntDisplayValue(options.MainPage.ExtractRecentMediaInfoLimit, false)),
-                new OptionLogEntry("Main.DownloadDanmuXmlLibraries", "Main", "下载弹幕范围", FormatOptionValue(options.MainPage.DownloadDanmuXmlLibraries)),
-                new OptionLogEntry("Main.DownloadDanmuXmlDays", "Main", "下载弹幕时间窗口", FormatTaskIntDisplayValue(options.MainPage.DownloadDanmuXmlDays, true)),
-                new OptionLogEntry("Main.ExportExistingMediaInfoLibraries", "Main", "备份媒体信息范围", FormatOptionValue(options.MainPage.ExportExistingMediaInfoLibraries)),
-                new OptionLogEntry("Main.RestoreMediaInfoLibraries", "Main", "恢复媒体信息范围", FormatOptionValue(options.MainPage.RestoreMediaInfoLibraries)),
-                new OptionLogEntry("Main.ScanExternalSubtitleLibraries", "Main", "扫描外挂字幕范围", FormatOptionValue(options.MainPage.ScanExternalSubtitleLibraries)),
+                new OptionLogEntry("Main.RefreshRecentMetadataLibraries", "Main", "刷新媒体元数据范围", FormatOptionValue(refreshRecentMetadata.RefreshRecentMetadataLibraries)),
+                new OptionLogEntry("Main.RefreshRecentMetadataDays", "Main", "刷新媒体元数据时间窗口", FormatTaskIntDisplayValue(refreshRecentMetadata.RefreshRecentMetadataDays, true)),
+                new OptionLogEntry("Main.RefreshMetadataMode", "Main", "刷新模式", refreshRecentMetadata.RefreshMetadataMode.ToString()),
+                new OptionLogEntry("Main.ReplaceExistingImages", "Main", "替换现有图像", refreshRecentMetadata.ReplaceExistingImages.ToString()),
+                new OptionLogEntry("Main.ReplaceExistingVideoPreviewThumbnails", "Main", "替换现有视频预览缩略图", refreshRecentMetadata.ReplaceExistingVideoPreviewThumbnails.ToString()),
+                new OptionLogEntry("Main.ScanRecentIntroLibraries", "Main", "扫描片头范围", FormatOptionValue(scanRecentIntro.ScanRecentIntroLibraries)),
+                new OptionLogEntry("Main.ScanRecentIntroLimit", "Main", "扫描片头最近条目数量", FormatTaskIntDisplayValue(scanRecentIntro.ScanRecentIntroLimit, false)),
+                new OptionLogEntry("Main.ExtractRecentMediaInfoLibraries", "Main", "提取媒体信息范围", FormatOptionValue(extractRecentMediaInfo.ExtractRecentMediaInfoLibraries)),
+                new OptionLogEntry("Main.ExtractRecentMediaInfoLimit", "Main", "提取媒体信息最近条目数量", FormatTaskIntDisplayValue(extractRecentMediaInfo.ExtractRecentMediaInfoLimit, false)),
+                new OptionLogEntry("Main.DownloadDanmuXmlLibraries", "Main", "下载弹幕范围", FormatOptionValue(downloadDanmuXml.DownloadDanmuXmlLibraries)),
+                new OptionLogEntry("Main.DownloadDanmuXmlDays", "Main", "下载弹幕时间窗口", FormatTaskIntDisplayValue(downloadDanmuXml.DownloadDanmuXmlDays, true)),
+                new OptionLogEntry("Main.ExportExistingMediaInfoLibraries", "Main", "备份媒体信息范围", FormatOptionValue(exportExistingMediaInfo.ExportExistingMediaInfoLibraries)),
+                new OptionLogEntry("Main.RestoreMediaInfoLibraries", "Main", "恢复媒体信息范围", FormatOptionValue(restoreMediaInfo.RestoreMediaInfoLibraries)),
+                new OptionLogEntry("Main.ScanExternalSubtitleLibraries", "Main", "扫描外挂字幕范围", FormatOptionValue(scanExternalSubtitle.ScanExternalSubtitleLibraries)),
                 new OptionLogEntry(
                     "Main.FileChangeRefreshDelaySeconds",
                     "Main",
@@ -568,10 +624,10 @@ namespace MediaInfoKeeper
                 new OptionLogEntry("MetaData.EnableLocalEpisodeGroup", "MetaData", "启用本地剧集组文件", options.MetaData.EnableLocalEpisodeGroup.ToString()),
                 new OptionLogEntry("MetaData.EnableImageCapture", "MetaData", "启用图片提取", options.MetaData.EnableImageCapture.ToString()),
 
-                new OptionLogEntry("GitHub.GitHubToken", "GitHub", "GitHub 访问令牌", FormatSecretValue(options.GitHub.GitHubToken)),
-                new OptionLogEntry("GitHub.DownloadUrlPrefix", "GitHub", "下载前缀", FormatOptionValue(options.GitHub.DownloadUrlPrefix)),
-                new OptionLogEntry("GitHub.UpdateChannel", "GitHub", "更新频道", FormatOptionValue(options.GitHub.UpdateChannel)),
-                new OptionLogEntry("GitHub.VersionStatus", "GitHub", "版本信息", FormatOptionValue(options.GitHub.VersionStatus?.StatusText)),
+                new OptionLogEntry("GitHub.GitHubToken", "GitHub", "GitHub 访问令牌", FormatSecretValue(options.GetEffectiveUpdatePluginOptions().GitHubToken)),
+                new OptionLogEntry("GitHub.DownloadUrlPrefix", "GitHub", "下载前缀", FormatOptionValue(options.GetEffectiveUpdatePluginOptions().DownloadUrlPrefix)),
+                new OptionLogEntry("GitHub.UpdateChannel", "GitHub", "更新频道", FormatOptionValue(options.GetEffectiveUpdatePluginOptions().UpdateChannel)),
+                new OptionLogEntry("GitHub.VersionStatus", "GitHub", "版本信息", FormatOptionValue(options.MainPage.UpdatePluginVersionStatus?.StatusText)),
 
                 new OptionLogEntry("NetWork.EnableProxyServer", "NetWork", "启用代理", netWorkOptions.EnableProxyServer.ToString()),
                 new OptionLogEntry("NetWork.ProxyServerUrl", "NetWork", "代理服务器地址", FormatOptionValue(netWorkOptions.ProxyServerUrl)),
@@ -980,12 +1036,6 @@ namespace MediaInfoKeeper
             MediaInfoDocument.DeleteMediaInfoJson(e.Item, this.directoryService, "Item Removed Event");
         }
 
-        private string GetLatestReleaseVersion()
-        {
-            EnsureReleaseHistoryCache();
-            return latestReleaseVersionCache;
-        }
-
         private string GetCurrentVersion()
         {
             var releaseTag = GetAssemblyReleaseTag(this.GetType().Assembly);
@@ -1001,7 +1051,7 @@ namespace MediaInfoKeeper
         private StatusItem BuildVersionStatusItem()
         {
             var currentVersion = GetCurrentVersion();
-            var latestVersion = GetLatestReleaseVersion();
+            var latestVersion = latestReleaseVersionCache;
 
             var normalizedCurrent = NormalizeVersionLabel(currentVersion);
             var normalizedLatest = NormalizeVersionLabel(latestVersion);
@@ -1052,17 +1102,50 @@ namespace MediaInfoKeeper
             return string.IsNullOrWhiteSpace(releaseTagAttribute?.Value) ? null : releaseTagAttribute.Value.Trim();
         }
 
-        private string GetReleaseHistoryBody()
+        internal void RefreshReleaseInfoInBackground()
         {
-            EnsureReleaseHistoryCache();
-            return releaseHistoryBodyCache;
+            var shouldStart = false;
+            lock (ReleaseHistoryLock)
+            {
+                if (!releaseHistoryRefreshInProgress)
+                {
+                    releaseHistoryRefreshInProgress = true;
+                    shouldStart = true;
+                }
+            }
+
+            if (!shouldStart)
+            {
+                return;
+            }
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    RefreshReleaseHistoryCache(forceRefresh: false);
+                }
+                catch (Exception ex)
+                {
+                    this.logger.Info($"后台获取 GitHub 历史版本失败: {ex.Message}");
+                    this.logger.Debug(ex.StackTrace);
+                }
+                finally
+                {
+                    lock (ReleaseHistoryLock)
+                    {
+                        releaseHistoryRefreshInProgress = false;
+                    }
+                }
+            });
         }
 
-        private void EnsureReleaseHistoryCache()
+        private void RefreshReleaseHistoryCache(bool forceRefresh)
         {
             var now = ConfiguredDateTime.NowOffset;
             var currentChannel = GetSelectedUpdateChannel();
-            if (now - releaseHistoryCheckedAt < LatestVersionCacheDuration &&
+            if (!forceRefresh &&
+                now - releaseHistoryCheckedAt < LatestVersionCacheDuration &&
                 string.Equals(releaseHistoryChannelCache, currentChannel, StringComparison.Ordinal) &&
                 !string.IsNullOrWhiteSpace(releaseHistoryBodyCache))
             {
@@ -1071,16 +1154,26 @@ namespace MediaInfoKeeper
 
             lock (ReleaseHistoryLock)
             {
-                if (now - releaseHistoryCheckedAt < LatestVersionCacheDuration &&
+                if (!forceRefresh &&
+                    now - releaseHistoryCheckedAt < LatestVersionCacheDuration &&
                     string.Equals(releaseHistoryChannelCache, currentChannel, StringComparison.Ordinal) &&
                     !string.IsNullOrWhiteSpace(releaseHistoryBodyCache))
                 {
                     return;
                 }
 
-                releaseHistoryCheckedAt = now;
-                releaseHistoryChannelCache = currentChannel;
                 var historyInfo = FetchReleaseHistoryInfo(currentChannel);
+                if (historyInfo.IsSuccess)
+                {
+                    releaseHistoryCheckedAt = now;
+                    releaseHistoryChannelCache = currentChannel;
+                    releaseHistoryBodyCache = historyInfo.HistoryBody;
+                    latestReleaseVersionCache = historyInfo.LatestVersion;
+                    return;
+                }
+
+                releaseHistoryCheckedAt = DateTimeOffset.MinValue;
+                releaseHistoryChannelCache = null;
                 releaseHistoryBodyCache = historyInfo.HistoryBody;
                 latestReleaseVersionCache = historyInfo.LatestVersion;
             }
@@ -1093,7 +1186,7 @@ namespace MediaInfoKeeper
                 var latestVersion = "未知";
                 var preferBeta = string.Equals(
                     updateChannel,
-                    GitHubOptions.UpdateChannelOption.Beta.ToString(),
+                    MainPageOptions.UpdateChannelOption.Beta.ToString(),
                     StringComparison.OrdinalIgnoreCase);
                 var requestOptions = new HttpRequestOptions
                 {
@@ -1105,7 +1198,7 @@ namespace MediaInfoKeeper
                     LogResponse = true,
                     TimeoutMs = 3000
                 };
-                var token = this.Options?.GitHub?.GitHubToken;
+                var token = this.Options?.GetEffectiveUpdatePluginOptions()?.GitHubToken;
                 if (!string.IsNullOrWhiteSpace(token))
                 {
                     requestOptions.RequestHeaders["Authorization"] = $"token {token}";
@@ -1118,7 +1211,7 @@ namespace MediaInfoKeeper
                 {
                     this.logger.Info($"获取 GitHub 历史版本失败: {(int)response.StatusCode} {response.StatusCode}");
                     this.logger.Info($"GitHub 响应体: {responseBody}");
-                    return new ReleaseHistoryInfo("获取失败", "获取失败");
+                    return new ReleaseHistoryInfo("获取失败", "获取失败", false);
                 }
 
                 using var document = JsonDocument.Parse(responseBody);
@@ -1216,27 +1309,27 @@ namespace MediaInfoKeeper
 
                     if (sb.Length == 0)
                     {
-                        return new ReleaseHistoryInfo("暂无发布记录", latestVersion);
+                        return new ReleaseHistoryInfo("暂无发布记录", latestVersion, true);
                     }
 
-                    return new ReleaseHistoryInfo(sb.ToString().TrimEnd(), latestVersion);
+                    return new ReleaseHistoryInfo(sb.ToString().TrimEnd(), latestVersion, true);
                 }
                 
-                return new ReleaseHistoryInfo("暂无发布记录", latestVersion);
+                return new ReleaseHistoryInfo("暂无发布记录", latestVersion, true);
             }
             catch (Exception ex)
             {
                 this.logger.Info($"获取 GitHub 历史版本失败: {ex.Message}");
                 this.logger.Debug(ex.StackTrace);
-                return new ReleaseHistoryInfo("获取失败", "获取失败");
+                return new ReleaseHistoryInfo("获取失败", "获取失败", false);
             }
         }
 
         private string GetSelectedUpdateChannel()
         {
-            var updateChannel = this.Options?.GitHub?.UpdateChannel;
+            var updateChannel = this.Options?.GetEffectiveUpdatePluginOptions()?.UpdateChannel;
             return string.IsNullOrWhiteSpace(updateChannel)
-                ? GitHubOptions.UpdateChannelOption.Stable.ToString()
+                ? MainPageOptions.UpdateChannelOption.Stable.ToString()
                 : updateChannel;
         }
 
@@ -1257,15 +1350,18 @@ namespace MediaInfoKeeper
 
         private readonly struct ReleaseHistoryInfo
         {
-            public ReleaseHistoryInfo(string historyBody, string latestVersion)
+            public ReleaseHistoryInfo(string historyBody, string latestVersion, bool isSuccess)
             {
                 HistoryBody = historyBody;
                 LatestVersion = latestVersion;
+                IsSuccess = isSuccess;
             }
 
             public string HistoryBody { get; }
 
             public string LatestVersion { get; }
+
+            public bool IsSuccess { get; }
         }
 
         private sealed class ReleaseHistoryEntry

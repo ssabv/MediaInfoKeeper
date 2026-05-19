@@ -84,11 +84,12 @@ namespace MediaInfoKeeper.ScheduledTask
 
             try
             {
-                var githubToken = Plugin.Instance.Options.GitHub?.GitHubToken;
-                var downloadUrlPrefix = Plugin.Instance.Options.GitHub?.DownloadUrlPrefix;
-                var updateChannel = string.IsNullOrWhiteSpace(Plugin.Instance.Options.GitHub?.UpdateChannel)
+                var updatePluginOptions = Plugin.Instance.Options.GetEffectiveUpdatePluginOptions();
+                var githubToken = updatePluginOptions?.GitHubToken;
+                var downloadUrlPrefix = updatePluginOptions?.DownloadUrlPrefix;
+                var updateChannel = string.IsNullOrWhiteSpace(updatePluginOptions?.UpdateChannel)
                     ? Options.GitHubOptions.UpdateChannelOption.Stable.ToString()
-                    : Plugin.Instance.Options.GitHub.UpdateChannel;
+                    : updatePluginOptions.UpdateChannel;
                 var currentVersionText = GetCurrentVersion();
                 var embyVersion = Plugin.Instance?.AppHost?.ApplicationVersion ?? new Version(0, 0, 0, 0);
 
@@ -302,7 +303,7 @@ namespace MediaInfoKeeper.ScheduledTask
         {
             try
             {
-                var githubToken = Plugin.Instance.Options.GitHub?.GitHubToken;
+                var githubToken = Plugin.Instance.Options.GetEffectiveUpdatePluginOptions()?.GitHubToken;
                 var manifestRequestOptions = new HttpRequestOptions
                 {
                     Url = RepoVersionUrl,

@@ -1,5 +1,6 @@
 namespace MediaInfoKeeper.Options.Store
 {
+    using Emby.Web.GenericEdit.Elements;
     using MediaInfoKeeper.Options;
 
     internal class MainPageOptionsStore
@@ -14,7 +15,9 @@ namespace MediaInfoKeeper.Options.Store
         public MainPageOptions GetOptions()
         {
             var options = this.pluginOptionsStore.GetOptionsForUi();
-            return options.MainPage ?? new MainPageOptions();
+            var mainPage = options.MainPage ?? new MainPageOptions();
+            mainPage.ScheduledTasksEditor ??= new MainPageOptions.ScheduledTaskEditorOptions();
+            return mainPage;
         }
 
         public void SetOptions(MainPageOptions options)

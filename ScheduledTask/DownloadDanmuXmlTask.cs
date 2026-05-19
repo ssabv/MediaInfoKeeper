@@ -101,8 +101,9 @@ namespace MediaInfoKeeper.ScheduledTask
 
         private List<BaseItem> FetchRecentScopedItems()
         {
-            var taskScope = Plugin.Instance.Options.MainPage.DownloadDanmuXmlLibraries;
-            var days = Plugin.Instance.Options.MainPage.DownloadDanmuXmlDays;
+            var taskOptions = Plugin.Instance.Options.MainPage.ScheduledTasksEditor.DownloadDanmuXml;
+            var taskScope = taskOptions.DownloadDanmuXmlLibraries;
+            var days = taskOptions.DownloadDanmuXmlDays;
             var cutoff = days > 0
                 ? ConfiguredDateTime.Now.AddDays(-days)
                 : (DateTime?)null;

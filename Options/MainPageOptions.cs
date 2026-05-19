@@ -21,6 +21,12 @@ namespace MediaInfoKeeper.Options
             Replace
         }
 
+        public enum UpdateChannelOption
+        {
+            Stable,
+            Beta
+        }
+
         public class RefreshRecentMetadataTaskEditorOptions : EditableOptionsBase
         {
             public override string EditorTitle => string.Empty;
@@ -153,30 +159,111 @@ namespace MediaInfoKeeper.Options
             public string ScanExternalSubtitleLibraries { get; set; } = string.Empty;
         }
 
+        public class UpdatePluginTaskEditorOptions : EditableOptionsBase
+        {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("GitHub 访问令牌")]
+            [Description("设置后使用 Token 获取 Releases，避免未认证请求的限流。")]
+            public string GitHubToken { get; set; } = string.Empty;
+
+            [DisplayName("下载前缀")]
+            [Description("仅用于插件 Dll 下载，例如 https://ghfast.top 已配置网络代理时通常不需要再设置这里，避免代理链路叠加。")]
+            public string DownloadUrlPrefix { get; set; } = string.Empty;
+
+            [Browsable(false)]
+            public List<EditorSelectOption> UpdateChannelList { get; set; } = new List<EditorSelectOption>();
+
+            [DisplayName("更新频道")]
+            [Description("Stable 只拉取最新正式版 Release；Beta 拉取最新 Release，可能是正式版，也可能是预发布版。")]
+            [Editor(typeof(EditorSelectSingle), typeof(EditorBase))]
+            [SelectItemsSource(nameof(UpdateChannelList))]
+            public string UpdateChannel { get; set; } = UpdateChannelOption.Stable.ToString();
+
+            public void Initialize()
+            {
+                if (string.IsNullOrWhiteSpace(UpdateChannel))
+                {
+                    UpdateChannel = UpdateChannelOption.Stable.ToString();
+                }
+
+                UpdateChannelList.Clear();
+                foreach (UpdateChannelOption item in Enum.GetValues(typeof(UpdateChannelOption)))
+                {
+                    UpdateChannelList.Add(new EditorSelectOption
+                    {
+                        Name = item == UpdateChannelOption.Stable ? "Stable" : "Beta",
+                        Value = item.ToString(),
+                        IsEnabled = true
+                    });
+                }
+            }
+
+            public override IEditObjectContainer CreateEditContainer()
+            {
+                var container = (EditObjectContainer)base.CreateEditContainer();
+                var root = container.EditorRoot;
+                if (root?.EditorItems == null || root.EditorItems.Length == 0)
+                {
+                    return container;
+                }
+
+                var items = new List<EditorBase>(root.EditorItems.Length);
+                var itemLookup = new Dictionary<string, EditorBase>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in root.EditorItems)
+                {
+                    var key = item.Name ?? item.Id;
+                    items.Add(item);
+                    if (!string.IsNullOrEmpty(key) && !itemLookup.ContainsKey(key))
+                    {
+                        itemLookup.Add(key, item);
+                    }
+                }
+
+                var groupedItems = new List<EditorBase>();
+                var groupIndex = 0;
+
+                void AddGroup(string title, string description, params string[] propertyNames)
+                {
+                    var groupItems = new List<EditorBase>();
+                    foreach (var propertyName in propertyNames)
+                    {
+                        if (itemLookup.TryGetValue(propertyName, out var item))
+                        {
+                            groupItems.Add(item);
+                            itemLookup.Remove(propertyName);
+                        }
+                    }
+
+                    if (groupItems.Count == 0)
+                    {
+                        return;
+                    }
+
+                    groupIndex++;
+                    var group = new EditorGroup(title, groupItems.ToArray(), $"group{groupIndex}", root.Id, null)
+                    {
+                        Description = description
+                    };
+                    groupedItems.Add(group);
+                }
+
+                AddGroup("更新插件", "",
+                    nameof(GitHubToken),
+                    nameof(DownloadUrlPrefix),
+                    nameof(UpdateChannel));
+
+                root.EditorItems = groupedItems.Count > 0 ? groupedItems.ToArray() : items.ToArray();
+                return container;
+            }
+        }
+
         public class ScheduledTaskEditorOptions : EditableOptionsBase
         {
             public override string EditorTitle => string.Empty;
 
             [Browsable(false)]
             public IEnumerable<EditorSelectOption> LibraryList { get; set; }
-
-            [DisplayName("计划任务媒体库")]
-            [Description("计划任务默认范围；各任务未单独设置时继承这里。留空表示全部。")]
-            [EditMultilSelect]
-            [SelectItemsSource(nameof(LibraryList))]
-            public string ScheduledTaskLibraries { get; set; } = string.Empty;
-
-            [DisplayName("最近入库时间窗口（天）")]
-            [Description("计划任务默认时间窗口；对应任务未单独设置时继承这里，0 表示不限制。")]
-            [MinValue(0)]
-            [MaxValue(3650)]
-            public int RecentItemsDays { get; set; } = 3;
-
-            [DisplayName("最近入库媒体筛选数量")]
-            [Description("计划任务默认最近条目数量；对应任务未单独设置时继承这里。")]
-            [MinValue(1)]
-            [MaxValue(100000000)]
-            public int RecentItemsLimit { get; set; } = 100;
 
             [DisplayName("刷新媒体元数据")]
             public RefreshRecentMetadataTaskEditorOptions RefreshRecentMetadata { get; set; } = new RefreshRecentMetadataTaskEditorOptions();
@@ -198,6 +285,9 @@ namespace MediaInfoKeeper.Options
 
             [DisplayName("扫描外挂字幕")]
             public ScanExternalSubtitleTaskEditorOptions ScanExternalSubtitle { get; set; } = new ScanExternalSubtitleTaskEditorOptions();
+
+            [DisplayName("更新插件")]
+            public UpdatePluginTaskEditorOptions UpdatePlugin { get; set; } = new UpdatePluginTaskEditorOptions();
         }
 
         public override string EditorTitle => "基础设置";
@@ -205,6 +295,19 @@ namespace MediaInfoKeeper.Options
         public override string EditorDescription => string.Empty;
 
         public GenericItemList ScheduledTaskEntries { get; set; } = new GenericItemList();
+
+        public LabelItem UpdatePluginProjectUrl { get; set; } = new LabelItem("https://github.com/honue/MediaInfoKeeper")
+        {
+            HyperLink = "https://github.com/honue/MediaInfoKeeper",
+            Icon = IconNames.open_in_new
+        };
+
+        [DisplayName("版本信息")]
+        public StatusItem UpdatePluginVersionStatus { get; set; } = new StatusItem("版本信息", "当前版本：未知\n最新版本：加载中");
+
+        [DisplayName("更新说明")]
+        [Description("始终显示全部 GitHub Releases 的发布记录；预发布版会额外标记为 [Prerelease]。")]
+        public string UpdatePluginReleaseHistoryBody { get; set; } = "加载中";
 
         [DisplayName("启用插件")]
         [Description("关闭后将不执行任何行为。")]
@@ -224,218 +327,36 @@ namespace MediaInfoKeeper.Options
         [SelectItemsSource(nameof(LibraryList))]
         public string CatchupLibraries { get; set; } = string.Empty;
 
-        [DisplayName("计划任务媒体库")]
-        [Description("计划任务默认范围；各任务未单独设置时继承这里。留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string ScheduledTaskLibraries { get; set; } = string.Empty;
-
-        [Browsable(false)]
-        [DisplayName("最近入库时间窗口（天）")]
-        [Description("计划任务默认时间窗口；对应任务未单独设置时继承这里，0 表示不限制。")]
-        [MinValue(0)]
-        [MaxValue(3650)]
-        public int RecentItemsDays { get; set; } = 3;
-
-        [Browsable(false)]
-        [DisplayName("最近入库媒体筛选数量")]
-        [Description("计划任务默认最近条目数量；对应任务未单独设置时继承这里。")]
-        [MinValue(1)]
-        [MaxValue(100000000)]
-        public int RecentItemsLimit { get; set; } = 100;
-
-        [DisplayName("媒体库范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string RefreshRecentMetadataLibraries { get; set; } = string.Empty;
-
-        [DisplayName("刷新最近入库时间窗口（天）")]
-        [Description("仅处理指定天数内入库的条目，0 表示不限制。")]
-        [MinValue(0)]
-        [MaxValue(3650)]
-        [Browsable(false)]
-        public int RefreshRecentMetadataDays { get; set; } = 3;
-
-        [DisplayName("刷新模式")]
-        [Description("依据 Emby 媒体库中的设置和元数据提供器，用新的数据更新元数据。")]
-        [Browsable(false)]
-        public RefreshModeOption RefreshMetadataMode { get; set; } = RefreshModeOption.Fill;
-
-        [DisplayName("替换现有图像")]
-        [Description("基于媒体库选项，将删除全部现有图像，并下载新图像。")]
-        [Browsable(false)]
-        public bool ReplaceExistingImages { get; set; } = true;
-
-        [DisplayName("替换现有视频预览缩略图")]
-        [Description("如果在媒体库选项中启用此功能，将删除现有视频预览缩略图并生成新的缩略图。")]
-        [Browsable(false)]
-        public bool ReplaceExistingVideoPreviewThumbnails { get; set; } = true;
-
-        [DisplayName("媒体库范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string ScanRecentIntroLibraries { get; set; } = string.Empty;
-
-        [DisplayName("扫描最近条目数量")]
-        [MinValue(1)]
-        [MaxValue(100000000)]
-        [Browsable(false)]
-        public int ScanRecentIntroLimit { get; set; } = 100;
-
-        [DisplayName("媒体库范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string ExtractRecentMediaInfoLibraries { get; set; } = string.Empty;
-
-        [DisplayName("提取最近条目数量")]
-        [MinValue(1)]
-        [MaxValue(100000000)]
-        [Browsable(false)]
-        public int ExtractRecentMediaInfoLimit { get; set; } = 100;
-
-        [DisplayName("备份媒体信息范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string ExportExistingMediaInfoLibraries { get; set; } = string.Empty;
-
-        [DisplayName("恢复媒体信息范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string RestoreMediaInfoLibraries { get; set; } = string.Empty;
-
-        [DisplayName("扫描外挂字幕范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string ScanExternalSubtitleLibraries { get; set; } = string.Empty;
-
-        [DisplayName("媒体库范围")]
-        [Description("留空表示全部。")]
-        [EditMultilSelect]
-        [SelectItemsSource(nameof(LibraryList))]
-        [Browsable(false)]
-        public string DownloadDanmuXmlLibraries { get; set; } = string.Empty;
-
-        [DisplayName("下载最近入库时间窗口（天）")]
-        [Description("仅处理指定天数内入库的条目，0 表示不限制。")]
-        [MinValue(0)]
-        [MaxValue(3650)]
-        [Browsable(false)]
-        public int DownloadDanmuXmlDays { get; set; } = 3;
-
         [Browsable(false)]
         public ScheduledTaskEditorOptions ScheduledTasksEditor { get; set; } = new ScheduledTaskEditorOptions();
 
-        public void SyncScheduledTaskEditorFromFields()
+        public void EnsureScheduledTaskEditors()
         {
             ScheduledTasksEditor ??= new ScheduledTaskEditorOptions();
-            ScheduledTasksEditor.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScheduledTaskLibraries = ScheduledTaskLibraries;
-            ScheduledTasksEditor.RecentItemsDays = RecentItemsDays;
-            ScheduledTasksEditor.RecentItemsLimit = RecentItemsLimit;
-
             ScheduledTasksEditor.RefreshRecentMetadata ??= new RefreshRecentMetadataTaskEditorOptions();
-            ScheduledTasksEditor.RefreshRecentMetadata.LibraryList = LibraryList;
-            ScheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataDays = RefreshRecentMetadataDays;
-            ScheduledTasksEditor.RefreshRecentMetadata.RefreshMetadataMode = RefreshMetadataMode;
-            ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingImages = ReplaceExistingImages;
-            ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingVideoPreviewThumbnails = ReplaceExistingVideoPreviewThumbnails;
-            ScheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries = RefreshRecentMetadataLibraries;
-
             ScheduledTasksEditor.ScanRecentIntro ??= new ScanRecentIntroTaskEditorOptions();
-            ScheduledTasksEditor.ScanRecentIntro.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLimit = ScanRecentIntroLimit;
-            ScheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries = ScanRecentIntroLibraries;
-
             ScheduledTasksEditor.ExtractRecentMediaInfo ??= new ExtractRecentMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.ExtractRecentMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLimit = ExtractRecentMediaInfoLimit;
-            ScheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries = ExtractRecentMediaInfoLibraries;
-
             ScheduledTasksEditor.DownloadDanmuXml ??= new DownloadDanmuXmlTaskEditorOptions();
-            ScheduledTasksEditor.DownloadDanmuXml.LibraryList = LibraryList;
-            ScheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlDays = DownloadDanmuXmlDays;
-            ScheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries = DownloadDanmuXmlLibraries;
-
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries = ExportExistingMediaInfoLibraries;
-
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries = RestoreMediaInfoLibraries;
-
             ScheduledTasksEditor.ScanExternalSubtitle ??= new ScanExternalSubtitleTaskEditorOptions();
-            ScheduledTasksEditor.ScanExternalSubtitle.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries = ScanExternalSubtitleLibraries;
-
-            ScheduledTaskEntries = BuildScheduledTaskEntries();
+            ScheduledTasksEditor.UpdatePlugin ??= new UpdatePluginTaskEditorOptions();
         }
 
-        public void SyncFieldsFromScheduledTaskEditor()
+        public void PrepareScheduledTaskEditorForUi()
         {
-            if (ScheduledTasksEditor == null)
-            {
-                return;
-            }
+            EnsureScheduledTaskEditors();
+            ScheduledTasksEditor.LibraryList = LibraryList;
+            ScheduledTasksEditor.RefreshRecentMetadata.LibraryList = LibraryList;
+            ScheduledTasksEditor.ScanRecentIntro.LibraryList = LibraryList;
+            ScheduledTasksEditor.ExtractRecentMediaInfo.LibraryList = LibraryList;
+            ScheduledTasksEditor.DownloadDanmuXml.LibraryList = LibraryList;
+            ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
+            ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
+            ScheduledTasksEditor.ScanExternalSubtitle.LibraryList = LibraryList;
+            ScheduledTasksEditor.UpdatePlugin.Initialize();
 
-            ScheduledTaskLibraries = ScheduledTasksEditor.ScheduledTaskLibraries ?? string.Empty;
-            RecentItemsDays = ScheduledTasksEditor.RecentItemsDays;
-            RecentItemsLimit = ScheduledTasksEditor.RecentItemsLimit;
-
-            if (ScheduledTasksEditor.RefreshRecentMetadata != null)
-            {
-                RefreshRecentMetadataDays = ScheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataDays;
-                RefreshMetadataMode = ScheduledTasksEditor.RefreshRecentMetadata.RefreshMetadataMode;
-                ReplaceExistingImages = ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingImages;
-                ReplaceExistingVideoPreviewThumbnails = ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingVideoPreviewThumbnails;
-                RefreshRecentMetadataLibraries = ScheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.ScanRecentIntro != null)
-            {
-                ScanRecentIntroLimit = ScheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLimit;
-                ScanRecentIntroLibraries = ScheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.ExtractRecentMediaInfo != null)
-            {
-                ExtractRecentMediaInfoLimit = ScheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLimit;
-                ExtractRecentMediaInfoLibraries = ScheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.DownloadDanmuXml != null)
-            {
-                DownloadDanmuXmlDays = ScheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlDays;
-                DownloadDanmuXmlLibraries = ScheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.ExportExistingMediaInfo != null)
-            {
-                ExportExistingMediaInfoLibraries = ScheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.RestoreMediaInfo != null)
-            {
-                RestoreMediaInfoLibraries = ScheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries ?? string.Empty;
-            }
-
-            if (ScheduledTasksEditor.ScanExternalSubtitle != null)
-            {
-                ScanExternalSubtitleLibraries = ScheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries ?? string.Empty;
-            }
+            ScheduledTaskEntries = BuildScheduledTaskEntries();
         }
 
         public override IEditObjectContainer CreateEditContainer()
@@ -451,6 +372,15 @@ namespace MediaInfoKeeper.Options
             foreach (var item in root.EditorItems)
             {
                 var key = item.Name ?? item.Id;
+                if (item is EditorText text &&
+                    string.Equals(key, nameof(UpdatePluginReleaseHistoryBody), StringComparison.OrdinalIgnoreCase))
+                {
+                    text.IsReadOnly = true;
+                    text.MultiLine = true;
+                    text.LineCount = 12;
+                    text.AllowEmpty = true;
+                }
+
                 if (string.IsNullOrEmpty(key))
                 {
                     continue;
@@ -495,11 +425,11 @@ namespace MediaInfoKeeper.Options
                 nameof(FileChangeRefreshDelaySeconds),
                 nameof(CatchupLibraries));
 
-            AddGroup("计划任务配置", string.Empty,
-                nameof(ScheduledTaskLibraries),
-                nameof(RecentItemsDays),
-                nameof(RecentItemsLimit),
-                nameof(ScheduledTaskEntries));
+            AddGroup("计划任务配置", "配置页面的保存按钮无效，在本页面需要再次点击保存。",
+                nameof(ScheduledTaskEntries),
+                nameof(UpdatePluginVersionStatus),
+                nameof(UpdatePluginProjectUrl),
+                nameof(UpdatePluginReleaseHistoryBody));
 
             var remaining = new List<EditorBase>();
             foreach (var item in root.EditorItems)
@@ -530,6 +460,7 @@ namespace MediaInfoKeeper.Options
         {
             return new GenericItemList(new[]
             {
+                CreateScheduledTaskEntry("更新插件", "main.scheduled.updatePlugin", "main.scheduled.run.updatePlugin"),
                 CreateScheduledTaskEntry("刷新媒体元数据", "main.scheduled.refreshRecentMetadata", "main.scheduled.run.refreshRecentMetadata"),
                 CreateScheduledTaskEntry("扫描片头", "main.scheduled.scanRecentIntro", "main.scheduled.run.scanRecentIntro"),
                 CreateScheduledTaskEntry("提取媒体信息", "main.scheduled.extractRecentMediaInfo", "main.scheduled.run.extractRecentMediaInfo"),

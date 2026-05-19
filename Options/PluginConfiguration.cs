@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using Emby.Web.GenericEdit;
+using Emby.Web.GenericEdit.Common;
 
 namespace MediaInfoKeeper.Options
 {
@@ -42,6 +43,15 @@ namespace MediaInfoKeeper.Options
             var options = NetWork ?? new NetWorkOptions();
             NetWork ??= options;
             return options;
+        }
+
+        public MainPageOptions.UpdatePluginTaskEditorOptions GetEffectiveUpdatePluginOptions()
+        {
+            MainPage ??= new MainPageOptions();
+            MainPage.EnsureScheduledTaskEditors();
+            var updatePlugin = MainPage.ScheduledTasksEditor.UpdatePlugin;
+            updatePlugin.Initialize();
+            return updatePlugin;
         }
 
         public MediaInfoOptions GetMediaInfoOptions()

@@ -13,6 +13,8 @@ namespace MediaInfoKeeper.Options.View
 
     internal class MainPageView : PluginPageView
     {
+        private const string UpdatePluginDialogCommandId = "main.scheduled.updatePlugin";
+        private const string UpdatePluginRunCommandId = "main.scheduled.run.updatePlugin";
         private const string RefreshRecentMetadataDialogCommandId = "main.scheduled.refreshRecentMetadata";
         private const string RefreshRecentMetadataRunCommandId = "main.scheduled.run.refreshRecentMetadata";
         private const string ScanRecentIntroDialogCommandId = "main.scheduled.scanRecentIntro";
@@ -39,12 +41,18 @@ namespace MediaInfoKeeper.Options.View
             this.pluginInfo = pluginInfo;
             this.store = store;
             this.ContentData = store.GetOptions();
+            Plugin.Instance?.RefreshReleaseInfoInBackground();
         }
 
         public MainPageOptions Options => this.ContentData as MainPageOptions;
 
         public override Task<IPluginUIView> RunCommand(string itemId, string commandId, string data)
         {
+            if (string.Equals(commandId, UpdatePluginDialogCommandId, StringComparison.Ordinal))
+            {
+                return Task.FromResult<IPluginUIView>(new UpdatePluginTaskDialogView(this.pluginInfo.Id, this.Options));
+            }
+
             if (string.Equals(commandId, RefreshRecentMetadataDialogCommandId, StringComparison.Ordinal))
             {
                 return Task.FromResult<IPluginUIView>(new RefreshRecentMetadataTaskDialogView(this.pluginInfo.Id, this.Options));
@@ -78,6 +86,11 @@ namespace MediaInfoKeeper.Options.View
             if (string.Equals(commandId, ScanExternalSubtitleDialogCommandId, StringComparison.Ordinal))
             {
                 return Task.FromResult<IPluginUIView>(new ScanExternalSubtitleTaskDialogView(this.pluginInfo.Id, this.Options));
+            }
+
+            if (string.Equals(commandId, UpdatePluginRunCommandId, StringComparison.Ordinal))
+            {
+                return this.RunScheduledTaskAsync<UpdatePluginTask>();
             }
 
             if (string.Equals(commandId, RefreshRecentMetadataRunCommandId, StringComparison.Ordinal))
@@ -120,7 +133,6 @@ namespace MediaInfoKeeper.Options.View
 
         public override async Task<IPluginUIView> OnSaveCommand(string itemId, string commandId, string data)
         {
-            this.Options.SyncFieldsFromScheduledTaskEditor();
             this.store.SetOptions(this.Options);
             return await base.OnSaveCommand(itemId, commandId, data).ConfigureAwait(false);
         }

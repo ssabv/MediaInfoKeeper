@@ -21,6 +21,7 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
             "EditorDescription",
             "FeatureRequiresPremiere",
             "IsNewItem",
+            "ScheduledTaskEntries",
             "LibraryList",
             "SubsequentMarkerModeList",
             "SearchItemTypeList",
@@ -34,6 +35,9 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
             "ProjectUrl",
             "VersionStatus",
             "ReleaseHistoryBody",
+            "UpdatePluginProjectUrl",
+            "UpdatePluginVersionStatus",
+            "UpdatePluginReleaseHistoryBody",
             "DebugMediaInfoUrl",
             "ProxyLatencyStatus",
             "ShowProxyLatencyStatus"
@@ -116,6 +120,32 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
 
                 using (var stream = this.fileSystem.OpenRead(this.OptionsFilePath))
                 {
+                    JsonNode rootNode = null;
+                    try
+                    {
+                        rootNode = JsonNode.Parse(stream);
+                    }
+                    catch (Exception ex)
+                    {
+                        this.logger.Warn("无法解析配置 JSON，回退为原始反序列化结果：{0}", ex.Message);
+                    }
+
+                    if (rootNode != null)
+                    {
+                        rootNode = this.TransformLoadedJson(rootNode) ?? rootNode;
+                        using var transformedStream = new MemoryStream();
+                        using (var writer = new Utf8JsonWriter(transformedStream, new JsonWriterOptions { Indented = true }))
+                        {
+                            rootNode.WriteTo(writer);
+                            writer.Flush();
+                        }
+
+                        transformedStream.Position = 0;
+                        var transformed = tempOptions.DeserializeFromJsonStream(transformedStream, this.jsonSerializer);
+                        return transformed as TOptionType ?? tempOptions;
+                    }
+
+                    stream.Position = 0;
                     var deserialized = tempOptions.DeserializeFromJsonStream(stream, this.jsonSerializer);
                     return deserialized as TOptionType ?? tempOptions;
                 }
@@ -201,10 +231,21 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
                 return;
             }
 
+            rootNode = this.TransformSavingJson(rootNode, options) ?? rootNode;
             SanitizeJsonNode(rootNode);
             using var writer = new Utf8JsonWriter(destination, new JsonWriterOptions { Indented = true });
             rootNode.WriteTo(writer);
             writer.Flush();
+        }
+
+        protected virtual JsonNode TransformLoadedJson(JsonNode rootNode)
+        {
+            return rootNode;
+        }
+
+        protected virtual JsonNode TransformSavingJson(JsonNode rootNode, TOptionType options)
+        {
+            return rootNode;
         }
 
         private static void SanitizeJsonNode(JsonNode node)

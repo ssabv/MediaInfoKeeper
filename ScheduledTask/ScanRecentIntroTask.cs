@@ -45,9 +45,10 @@ namespace MediaInfoKeeper.ScheduledTask
 
         private List<Episode> FetchRecentEpisodes()
         {
-            var limit = Plugin.Instance.Options.MainPage.ScanRecentIntroLimit;
+            var taskOptions = Plugin.Instance.Options.MainPage.ScheduledTasksEditor.ScanRecentIntro;
+            var limit = taskOptions.ScanRecentIntroLimit;
             var episodes = Plugin.LibraryService.FetchScheduledTaskLibraryItems(
-                    Plugin.Instance.Options.MainPage.ScanRecentIntroLibraries,
+                    taskOptions.ScanRecentIntroLibraries,
                     orderByDateCreatedDesc: true,
                     take: Math.Max(1, limit))
                 .OfType<Episode>()

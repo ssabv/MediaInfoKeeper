@@ -1,7 +1,29 @@
+using Emby.Web.GenericEdit.Elements;
+
 namespace MediaInfoKeeper.Options.View
 {
     using System.Threading.Tasks;
     using MediaInfoKeeper.Options;
+
+    internal sealed class UpdatePluginTaskDialogView : MainPageTaskDialogView<MainPageOptions.UpdatePluginTaskEditorOptions>
+    {
+        private readonly MainPageOptions owner;
+
+        public UpdatePluginTaskDialogView(string pluginId, MainPageOptions owner)
+            : base(pluginId, owner?.ScheduledTasksEditor?.UpdatePlugin ?? new MainPageOptions.UpdatePluginTaskEditorOptions(), "更新插件")
+        {
+            this.owner = owner;
+        }
+
+        public override async Task OnOkCommand(string providerId, string commandId, string data)
+        {
+            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
+            if (this.owner?.ScheduledTasksEditor != null)
+            {
+                this.owner.ScheduledTasksEditor.UpdatePlugin = this.Options;
+            }
+        }
+    }
 
     internal sealed class RefreshRecentMetadataTaskDialogView : MainPageTaskDialogView<MainPageOptions.RefreshRecentMetadataTaskEditorOptions>
     {
@@ -20,7 +42,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.RefreshRecentMetadata = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -41,7 +62,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.ScanRecentIntro = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -62,7 +82,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.ExtractRecentMediaInfo = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -83,7 +102,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.DownloadDanmuXml = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -104,7 +122,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.ExportExistingMediaInfo = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -125,7 +142,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.RestoreMediaInfo = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 
@@ -146,7 +162,6 @@ namespace MediaInfoKeeper.Options.View
             {
                 this.owner.ScheduledTasksEditor.ScanExternalSubtitle = this.Options;
             }
-            this.owner?.SyncFieldsFromScheduledTaskEditor();
         }
     }
 }

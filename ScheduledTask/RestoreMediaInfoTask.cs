@@ -89,7 +89,7 @@ namespace MediaInfoKeeper.ScheduledTask
         private List<BaseItem> FetchScopedItems()
         {
             var items = Plugin.LibraryService.FetchScheduledTaskLibraryItems(
-                Plugin.Instance.Options.MainPage.RestoreMediaInfoLibraries,
+                Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries,
                 includeAudio: true);
             this.logger.Info($"计划任务条目数 {items.Count}");
             return items;

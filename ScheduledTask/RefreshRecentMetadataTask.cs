@@ -137,8 +137,9 @@ namespace MediaInfoKeeper.ScheduledTask
 
         private List<BaseItem> FetchRecentItems()
         {
-            var taskScope = Plugin.Instance.Options.MainPage.RefreshRecentMetadataLibraries;
-            var days = Plugin.Instance.Options.MainPage.RefreshRecentMetadataDays;
+            var taskOptions = Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata;
+            var taskScope = taskOptions.RefreshRecentMetadataLibraries;
+            var days = taskOptions.RefreshRecentMetadataDays;
             var cutoff = days > 0
                 ? ConfiguredDateTime.Now.AddDays(-days)
                 : (DateTime?)null;
@@ -249,17 +250,17 @@ namespace MediaInfoKeeper.ScheduledTask
 
         private bool ShouldReplaceMetadata()
         {
-            return Plugin.Instance.Options.MainPage.RefreshMetadataMode == RefreshModeOption.Replace;
+            return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.RefreshMetadataMode == RefreshModeOption.Replace;
         }
 
         private bool ShouldReplaceImages()
         {
-            return Plugin.Instance.Options.MainPage.ReplaceExistingImages;
+            return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingImages;
         }
 
         private bool ShouldReplaceThumbnails()
         {
-            return Plugin.Instance.Options.MainPage.ReplaceExistingVideoPreviewThumbnails;
+            return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingVideoPreviewThumbnails;
         }
     }
 }
