@@ -74,8 +74,8 @@ namespace MediaInfoKeeper.Options.Store
             var restoreMediaInfo = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.RestoreMediaInfo));
             CopyString(mainPage, restoreMediaInfo, "RestoreMediaInfoLibraries", nameof(MainPageOptions.RestoreMediaInfoTaskEditorOptions.RestoreMediaInfoLibraries));
 
-            var scanExternalSubtitle = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanExternalSubtitle));
-            CopyString(mainPage, scanExternalSubtitle, "ScanExternalSubtitleLibraries", nameof(MainPageOptions.ScanExternalSubtitleTaskEditorOptions.ScanExternalSubtitleLibraries));
+            var scanExternalFiles = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanExternalFiles));
+            CopyString(mainPage, scanExternalFiles, "ScanExternalFilesLibraries", nameof(MainPageOptions.ScanExternalFilesTaskEditorOptions.ScanExternalFilesLibraries));
 
             var updatePlugin = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.UpdatePlugin));
             if (root[nameof(PluginConfiguration.GitHub)] is JsonObject gitHub)
@@ -128,7 +128,7 @@ namespace MediaInfoKeeper.Options.Store
                     "DownloadDanmuXmlLibraries",
                     "ExportExistingMediaInfoLibraries",
                     "RestoreMediaInfoLibraries",
-                    "ScanExternalSubtitleLibraries");
+                    "ScanExternalFilesLibraries");
             }
 
             root.Remove(nameof(PluginConfiguration.GitHub));

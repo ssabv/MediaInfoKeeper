@@ -60,7 +60,7 @@ namespace MediaInfoKeeper
         public static IntroScanService IntroScanService { get; private set; }
         public static PrefetchService PrefetchService { get; private set; }
         public static StrmFileWatcher StrmFileWatcher { get; private set; }
-        public static ExternalSubtitle ExternalSubtitle { get; private set; }
+        public static ExternalFiles ExternalFiles { get; private set; }
         public static DanmuService DanmuService { get; private set; }
 
         private readonly Guid id = new Guid("874D7056-072D-43A4-16DD-BC32665B9563");
@@ -185,7 +185,7 @@ namespace MediaInfoKeeper
             DebugOptionsStore = new DebugOptionsStore(OptionsStore);
 #endif
 
-            ExternalSubtitle = new ExternalSubtitle(
+            ExternalFiles = new ExternalFiles(
                 libraryManager,
                 fileSystem,
                 mediaProbeManager,
@@ -468,8 +468,8 @@ namespace MediaInfoKeeper
                 NormalizeScopedLibraries(scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries);
             scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries =
                 NormalizeScopedLibraries(scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries);
-            scheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries =
-                NormalizeScopedLibraries(scheduledTasksEditor.ScanExternalSubtitle.ScanExternalSubtitleLibraries);
+            scheduledTasksEditor.ScanExternalFiles.ScanExternalFilesLibraries =
+                NormalizeScopedLibraries(scheduledTasksEditor.ScanExternalFiles.ScanExternalFilesLibraries);
 
             if (options.IntroSkip != null)
             {
@@ -544,7 +544,7 @@ namespace MediaInfoKeeper
             var downloadDanmuXml = scheduledTasksEditor.DownloadDanmuXml;
             var exportExistingMediaInfo = scheduledTasksEditor.ExportExistingMediaInfo;
             var restoreMediaInfo = scheduledTasksEditor.RestoreMediaInfo;
-            var scanExternalSubtitle = scheduledTasksEditor.ScanExternalSubtitle;
+            var scanExternalFiles = scheduledTasksEditor.ScanExternalFiles;
 
             return new List<OptionLogEntry>
             {
@@ -564,7 +564,7 @@ namespace MediaInfoKeeper
                 new OptionLogEntry("Main.DownloadDanmuXmlDays", "Main", "下载弹幕时间窗口", FormatTaskIntDisplayValue(downloadDanmuXml.DownloadDanmuXmlDays, true)),
                 new OptionLogEntry("Main.ExportExistingMediaInfoLibraries", "Main", "备份媒体信息范围", FormatOptionValue(exportExistingMediaInfo.ExportExistingMediaInfoLibraries)),
                 new OptionLogEntry("Main.RestoreMediaInfoLibraries", "Main", "恢复媒体信息范围", FormatOptionValue(restoreMediaInfo.RestoreMediaInfoLibraries)),
-                new OptionLogEntry("Main.ScanExternalSubtitleLibraries", "Main", "扫描外挂字幕范围", FormatOptionValue(scanExternalSubtitle.ScanExternalSubtitleLibraries)),
+                new OptionLogEntry("Main.ScanExternalFilesLibraries", "Main", "扫描外挂文件范围", FormatOptionValue(scanExternalFiles.ScanExternalFilesLibraries)),
                 new OptionLogEntry(
                     "Main.FileChangeRefreshDelaySeconds",
                     "Main",

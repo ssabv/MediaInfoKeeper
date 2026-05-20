@@ -145,18 +145,18 @@ namespace MediaInfoKeeper.Options
             public string RestoreMediaInfoLibraries { get; set; } = string.Empty;
         }
 
-        public class ScanExternalSubtitleTaskEditorOptions : EditableOptionsBase
+        public class ScanExternalFilesTaskEditorOptions : EditableOptionsBase
         {
             public override string EditorTitle => string.Empty;
 
             [Browsable(false)]
             public IEnumerable<EditorSelectOption> LibraryList { get; set; }
 
-            [DisplayName("扫描外挂字幕范围")]
+            [DisplayName("扫描外挂文件范围")]
             [Description("留空表示全部。")]
             [EditMultilSelect]
             [SelectItemsSource(nameof(LibraryList))]
-            public string ScanExternalSubtitleLibraries { get; set; } = string.Empty;
+            public string ScanExternalFilesLibraries { get; set; } = string.Empty;
         }
 
         public class UpdatePluginTaskEditorOptions : EditableOptionsBase
@@ -283,8 +283,8 @@ namespace MediaInfoKeeper.Options
             [DisplayName("恢复媒体信息")]
             public RestoreMediaInfoTaskEditorOptions RestoreMediaInfo { get; set; } = new RestoreMediaInfoTaskEditorOptions();
 
-            [DisplayName("扫描外挂字幕")]
-            public ScanExternalSubtitleTaskEditorOptions ScanExternalSubtitle { get; set; } = new ScanExternalSubtitleTaskEditorOptions();
+            [DisplayName("扫描外挂文件")]
+            public ScanExternalFilesTaskEditorOptions ScanExternalFiles { get; set; } = new ScanExternalFilesTaskEditorOptions();
 
             [DisplayName("更新插件")]
             public UpdatePluginTaskEditorOptions UpdatePlugin { get; set; } = new UpdatePluginTaskEditorOptions();
@@ -339,7 +339,7 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor.DownloadDanmuXml ??= new DownloadDanmuXmlTaskEditorOptions();
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.ScanExternalSubtitle ??= new ScanExternalSubtitleTaskEditorOptions();
+            ScheduledTasksEditor.ScanExternalFiles ??= new ScanExternalFilesTaskEditorOptions();
             ScheduledTasksEditor.UpdatePlugin ??= new UpdatePluginTaskEditorOptions();
         }
 
@@ -353,7 +353,7 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor.DownloadDanmuXml.LibraryList = LibraryList;
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScanExternalSubtitle.LibraryList = LibraryList;
+            ScheduledTasksEditor.ScanExternalFiles.LibraryList = LibraryList;
             ScheduledTasksEditor.UpdatePlugin.Initialize();
 
             ScheduledTaskEntries = BuildScheduledTaskEntries();
@@ -467,7 +467,7 @@ namespace MediaInfoKeeper.Options
                 CreateScheduledTaskEntry("下载弹幕", "main.scheduled.downloadDanmuXml", "main.scheduled.run.downloadDanmuXml"),
                 CreateScheduledTaskEntry("备份媒体信息", "main.scheduled.exportExistingMediaInfo", "main.scheduled.run.exportExistingMediaInfo"),
                 CreateScheduledTaskEntry("恢复媒体信息", "main.scheduled.restoreMediaInfo", "main.scheduled.run.restoreMediaInfo"),
-                CreateScheduledTaskEntry("扫描外挂字幕", "main.scheduled.scanExternalSubtitle", "main.scheduled.run.scanExternalSubtitle")
+                CreateScheduledTaskEntry("扫描外挂文件", "main.scheduled.scanExternalFiles", "main.scheduled.run.scanExternalFiles")
             });
         }
 

@@ -27,8 +27,8 @@ namespace MediaInfoKeeper.Options.View
         private const string ExportExistingMediaInfoRunCommandId = "main.scheduled.run.exportExistingMediaInfo";
         private const string RestoreMediaInfoDialogCommandId = "main.scheduled.restoreMediaInfo";
         private const string RestoreMediaInfoRunCommandId = "main.scheduled.run.restoreMediaInfo";
-        private const string ScanExternalSubtitleDialogCommandId = "main.scheduled.scanExternalSubtitle";
-        private const string ScanExternalSubtitleRunCommandId = "main.scheduled.run.scanExternalSubtitle";
+        private const string ScanExternalFilesDialogCommandId = "main.scheduled.scanExternalFiles";
+        private const string ScanExternalFilesRunCommandId = "main.scheduled.run.scanExternalFiles";
 
         private readonly IApplicationHost applicationHost;
         private readonly PluginInfo pluginInfo;
@@ -83,9 +83,9 @@ namespace MediaInfoKeeper.Options.View
                 return Task.FromResult<IPluginUIView>(new RestoreMediaInfoTaskDialogView(this.pluginInfo.Id, this.Options));
             }
 
-            if (string.Equals(commandId, ScanExternalSubtitleDialogCommandId, StringComparison.Ordinal))
+            if (string.Equals(commandId, ScanExternalFilesDialogCommandId, StringComparison.Ordinal))
             {
-                return Task.FromResult<IPluginUIView>(new ScanExternalSubtitleTaskDialogView(this.pluginInfo.Id, this.Options));
+                return Task.FromResult<IPluginUIView>(new ScanExternalFilesTaskDialogView(this.pluginInfo.Id, this.Options));
             }
 
             if (string.Equals(commandId, UpdatePluginRunCommandId, StringComparison.Ordinal))
@@ -123,9 +123,9 @@ namespace MediaInfoKeeper.Options.View
                 return this.RunScheduledTaskAsync<RestoreMediaInfoTask>();
             }
 
-            if (string.Equals(commandId, ScanExternalSubtitleRunCommandId, StringComparison.Ordinal))
+            if (string.Equals(commandId, ScanExternalFilesRunCommandId, StringComparison.Ordinal))
             {
-                return this.RunScheduledTaskAsync<ScanExternalSubtitleTask>();
+                return this.RunScheduledTaskAsync<ScanExternalFilesTask>();
             }
 
             return base.RunCommand(itemId, commandId, data);

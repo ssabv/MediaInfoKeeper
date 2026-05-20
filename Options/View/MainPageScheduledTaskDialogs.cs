@@ -145,12 +145,12 @@ namespace MediaInfoKeeper.Options.View
         }
     }
 
-    internal sealed class ScanExternalSubtitleTaskDialogView : MainPageTaskDialogView<MainPageOptions.ScanExternalSubtitleTaskEditorOptions>
+    internal sealed class ScanExternalFilesTaskDialogView : MainPageTaskDialogView<MainPageOptions.ScanExternalFilesTaskEditorOptions>
     {
         private readonly MainPageOptions owner;
 
-        public ScanExternalSubtitleTaskDialogView(string pluginId, MainPageOptions owner)
-            : base(pluginId, owner?.ScheduledTasksEditor?.ScanExternalSubtitle ?? new MainPageOptions.ScanExternalSubtitleTaskEditorOptions(), "扫描外挂字幕")
+        public ScanExternalFilesTaskDialogView(string pluginId, MainPageOptions owner)
+            : base(pluginId, owner?.ScheduledTasksEditor?.ScanExternalFiles ?? new MainPageOptions.ScanExternalFilesTaskEditorOptions(), "扫描外挂文件")
         {
             this.owner = owner;
         }
@@ -160,7 +160,7 @@ namespace MediaInfoKeeper.Options.View
             await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
             if (this.owner?.ScheduledTasksEditor != null)
             {
-                this.owner.ScheduledTasksEditor.ScanExternalSubtitle = this.Options;
+                this.owner.ScheduledTasksEditor.ScanExternalFiles = this.Options;
             }
         }
     }
