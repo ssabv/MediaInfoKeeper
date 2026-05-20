@@ -347,6 +347,15 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "EmbeddedChapterMarkerMap",
+                Initialize = options => EmbeddedChapterMarkerMap.Initialize(logger, IsPluginEnabled(options)),
+                Configure = options => EmbeddedChapterMarkerMap.Configure(IsPluginEnabled(options)),
+                IsEnabled = options => IsPluginEnabled(options),
+                IsReady = () => EmbeddedChapterMarkerMap.IsReady
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "NetworkServer",
                 Initialize = options => NetworkServer.Initialize(logger, IsPluginEnabled(options) && HasNetworkServerFeatures(options)),
                 Configure = options => NetworkServer.Configure(IsPluginEnabled(options) && HasNetworkServerFeatures(options)),
