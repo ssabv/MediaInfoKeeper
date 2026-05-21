@@ -473,6 +473,18 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "PlaybackMediaSourceName",
+                Initialize = options => PlaybackMediaSourceName.Initialize(
+                    logger,
+                    options.Enhance.EnablePlaybackMediaSourceName),
+                Configure = options => PlaybackMediaSourceName.Configure(
+                    IsPluginEnabled(options) && options.Enhance.EnablePlaybackMediaSourceName),
+                IsEnabled = options => IsPluginEnabled(options) && options.Enhance.EnablePlaybackMediaSourceName,
+                IsReady = () => PlaybackMediaSourceName.IsReady
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "EpisodeBackdropFallback",
                 Initialize = options => EpisodeBackdropFallback.Initialize(
                     logger,

@@ -151,6 +151,10 @@ namespace MediaInfoKeeper.Options
         [DisplayName("电视剧显示总集数")]
         [Description("将电视剧和季度原本返回的未观看集数改为返回总集数，剧集、季的已播放显示状态会受影响。默认关闭。")]
         public bool EnableSeriesTotalEpisodeCount { get; set; } = false;
+
+        [DisplayName("播放源名称美化")]
+        [Description("在播放信息接口中把多版本媒体源名称显示为分辨率、杜比视界 Profile 和总码率，例如 4K DV P7 - 82 Mbps。")]
+        public bool EnablePlaybackMediaSourceName { get; set; } = false;
         
         [DisplayName("禁止自动合集")]
         [Description("阻止 Emby 自动创建 BoxSets 合集库，并在用户视图中过滤该入口。")]
@@ -280,6 +284,7 @@ namespace MediaInfoKeeper.Options
                 nameof(EnablePinyinSortName),
                 nameof(EnableNfoMetadataEnhance),
                 nameof(EnableSeriesTotalEpisodeCount),
+                nameof(EnablePlaybackMediaSourceName),
                 nameof(NoBoxsetsAutoCreation),
                 nameof(EnforceLibraryOrder));
 
