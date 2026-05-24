@@ -39,10 +39,6 @@ namespace MediaInfoKeeper.Options
         [Description("为 strm 音视频启用封面/缩略图提取，ImageCapture。")]
         public bool EnableImageCapture { get; set; } = true;
         
-        [DisplayName("优先原语言海报")]
-        [Description("开启后优先原语言图片结果（支持 TMDB / TVDB / Fanart）。")]
-        public bool EnableOriginalPoster { get; set; } = false;
-        
         [DisplayName("屏蔽非备选语言简介")]
         [Description("开启后，TMDB/TVDB 的电影/剧集/季/集简介若不在备选语言范围（如英文）将被置空。")]
         public bool BlockNonFallbackLanguage { get; set; } = false;
@@ -59,7 +55,11 @@ namespace MediaInfoKeeper.Options
         [EditMultilSelect]
         [SelectItemsSource(nameof(FallbackLanguageList))]
         public string FallbackLanguages { get; set; } = "zh-sg";
-
+        
+        [DisplayName("优先原语言海报")]
+        [Description("开启后优先 TMDB 原语言图片结果。")]
+        public bool EnableOriginalPoster { get; set; } = false;
+        
         [DisplayName("启用 TMDB 剧集组刮削")]
         [Description("开启后支持按 TMDB 剧集组映射刮削剧集元数据（需在剧集外部ID中填写 TmdbEg，或启用本地剧集组文件）。")]
         public bool EnableMovieDbEpisodeGroup { get; set; } = true;
@@ -219,14 +219,14 @@ namespace MediaInfoKeeper.Options
                 groupedItems.Add(group);
             }
 
-            AddGroup("MetaData", "当 Emby 元数据刷新时，插件会监听元数据刷新过程并延迟恢复媒体信息，避免刷新后媒体信息丢失。",
+            AddGroup("MetaData", "Emby 元数据刷新时，插件会监听元数据刷新过程，阻止媒体信息丢失。",
                 nameof(EnableImageCapture),
-                nameof(EnableOriginalPoster),
                 nameof(BlockNonFallbackLanguage));
             
             AddGroup("TMDB", "",
                 nameof(EnableAlternativeTitleFallback),
                 nameof(FallbackLanguages),
+                nameof(EnableOriginalPoster),
                 nameof(EnableMovieDbEpisodeGroup),
                 nameof(EnableMissingEpisodesEnhance),
                 nameof(EnableLocalEpisodeGroup));

@@ -311,7 +311,7 @@ namespace MediaInfoKeeper.Patch
                 IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableOriginalPoster,
                 IsReady = () => OriginalPoster.IsReady,
                 IsWaiting = () => OriginalPoster.IsWaiting,
-                Notes = () => OriginalPoster.IsWaiting ? "waiting for MovieDb assembly" : null
+                Notes = () => null
             });
 
             registrations.Add(new PatchRegistration
