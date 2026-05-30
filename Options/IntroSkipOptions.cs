@@ -34,6 +34,10 @@ namespace MediaInfoKeeper.Options
         [Description("触发对应收藏媒体片头检测，同时入库收藏剧集时，提取媒体信息，扫描片头。")]
         public bool ScanIntroOnFavorite { get; set; } = true;
 
+        [DisplayName("过滤普通章节")]
+        [Description("拦截 Emby/ffprobe 写入的普通 Chapter 01/02 等章节，仅保留片头片尾标记。关闭后将允许资源自带章节正常入库。")]
+        public bool FilterPlainChapters { get; set; } = true;
+        
         [DisplayName("启用片头打标")]
         [Description("根据播放行为自动标记片头。")]
         public bool EnableIntroMarker { get; set; } = false;
@@ -51,7 +55,7 @@ namespace MediaInfoKeeper.Options
         [DisplayName("启用片尾打标")]
         [Description("根据播放行为自动标记片尾。")]
         public bool EnableCreditsMarker { get; set; } = false;
-
+        
         [DisplayName("后续片尾设置")]
         [Description("按当前季补齐；可只写本集、补全缺失，或覆盖插件已写入的后续标记。当前集和后续剧集中的 Emby 系统片尾标记都不会更新。")]
         [Editor(typeof(EditorSelectSingle), typeof(EditorBase))]
@@ -175,6 +179,7 @@ namespace MediaInfoKeeper.Options
                 nameof(UnlockIntroSkip),
                 nameof(ScanIntroOnItemAdded),
                 nameof(ScanIntroOnFavorite),
+                nameof(FilterPlainChapters),
                 nameof(IntroDetectionFingerprintMinutes),
                 nameof(IntroDetectionMaxConcurrentCount));
 

@@ -25,6 +25,9 @@ namespace MediaInfoKeeper.Patch
         private static bool isPatched;
         public static bool IsReady => harmony != null && (!isEnabled || isPatched);
 
+        private static bool ShouldFilterPlainChapters =>
+            Plugin.Instance?.Options?.IntroSkip?.FilterPlainChapters ?? true;
+
         public static void Initialize(ILogger pluginLogger, bool enable)
         {
             if (harmony != null)
@@ -193,11 +196,18 @@ namespace MediaInfoKeeper.Patch
             }
 
             var item = Plugin.LibraryManager?.GetItemById(itemId);
+            var removedPlainChapters = ShouldFilterPlainChapters ? RemovePlainChapters(chapters) : 0;
+            if (removedPlainChapters > 0)
+            {
+                logger?.Debug($"片头片尾保护 - SaveChapters 过滤普通章节 {removedPlainChapters} 个。item: {item?.FileName ?? item?.Path ?? itemId.ToString()}, itemId: {itemId}");
+            }
 
             if (chapters == null || chapters.Count == 0)
             {
                 // 避免用空的章节列表覆盖现有章节数据。
                 logger?.Debug($"片头保护 - 拦截 SaveChapters：提交的章节列表为空，禁止清空现有章节。item: {item?.FileName ?? item?.Path ?? itemId.ToString()}, itemId: {itemId}");
+                // 根据普通章节保留开关，清理之前的章节信息
+                CleanupPlainChapters(itemId, item);
                 return false;
             }
 
@@ -410,6 +420,35 @@ namespace MediaInfoKeeper.Patch
             }
 
             return true;
+        }
+
+        private static int RemovePlainChapters(List<ChapterInfo> chapters)
+        {
+            if (chapters == null || chapters.Count == 0)
+            {
+                return 0;
+            }
+
+            return chapters.RemoveAll(chapter => chapter?.MarkerType == MarkerType.Chapter);
+        }
+
+        private static void CleanupPlainChapters(long itemId, BaseItem item)
+        {
+            if (!ShouldFilterPlainChapters || item == null || Plugin.Instance?.ItemRepository == null || Plugin.IntroSkipChapterApi == null)
+            {
+                return;
+            }
+
+            var itemChapters = Plugin.IntroSkipChapterApi.GetChapters(item) ?? new List<ChapterInfo>();
+            var removedPlainChapters = RemovePlainChapters(itemChapters);
+            if (removedPlainChapters <= 0)
+            {
+                return;
+            }
+
+            SaveChapters(Plugin.Instance.ItemRepository, item, itemChapters, new[] { MarkerType.IntroStart, MarkerType.IntroEnd, MarkerType.CreditsStart });
+
+            logger?.Info($"片头片尾保护 - 已清理历史普通章节 {removedPlainChapters} 个。item: {item.FileName ?? item.Path ?? itemId.ToString()}, itemId: {itemId}");
         }
 
         private sealed class AllowSaveScope : IDisposable

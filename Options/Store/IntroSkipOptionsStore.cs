@@ -14,7 +14,9 @@ namespace MediaInfoKeeper.Options.Store
         public IntroSkipOptions GetOptions()
         {
             var options = this.pluginOptionsStore.GetOptionsForUi();
-            return options.IntroSkip ?? new IntroSkipOptions();
+            var introSkipOptions = options.IntroSkip ?? new IntroSkipOptions();
+            introSkipOptions.Initialize();
+            return introSkipOptions;
         }
 
         public void SetOptions(IntroSkipOptions options)
