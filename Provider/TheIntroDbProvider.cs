@@ -23,6 +23,7 @@ namespace MediaInfoKeeper.Provider
         IHasOrder
     {
         public const string ProviderName = "TheIntroDB";
+        private const string MarkerSuffix = "#MIKTIDB";
 
         public string Name => ProviderName;
 
@@ -125,13 +126,13 @@ namespace MediaInfoKeeper.Provider
             {
                 chapters.Add(new ChapterInfo
                 {
-                    Name = MarkerType.IntroStart + "#MIK",
+                    Name = MarkerType.IntroStart + MarkerSuffix,
                     MarkerType = MarkerType.IntroStart,
                     StartPositionTicks = result.IntroStartTicks.Value
                 });
                 chapters.Add(new ChapterInfo
                 {
-                    Name = MarkerType.IntroEnd + "#MIK",
+                    Name = MarkerType.IntroEnd + MarkerSuffix,
                     MarkerType = MarkerType.IntroEnd,
                     StartPositionTicks = result.IntroEndTicks.Value
                 });
@@ -141,7 +142,7 @@ namespace MediaInfoKeeper.Provider
             {
                 chapters.Add(new ChapterInfo
                 {
-                    Name = MarkerType.CreditsStart + "#MIK",
+                    Name = MarkerType.CreditsStart + MarkerSuffix,
                     MarkerType = MarkerType.CreditsStart,
                     StartPositionTicks = result.CreditsStartTicks.Value
                 });

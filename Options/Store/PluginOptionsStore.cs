@@ -60,6 +60,10 @@ namespace MediaInfoKeeper.Options.Store
             CopyInt(mainPage, scanRecentIntro, "ScanRecentIntroLimit", nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLimit));
             CopyString(mainPage, scanRecentIntro, "ScanRecentIntroLibraries", nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLibraries));
 
+            var submitTheIntroDbMarkers = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.SubmitTheIntroDbMarkers));
+            CopyInt(mainPage, submitTheIntroDbMarkers, "SubmitTheIntroDbMarkersDays", nameof(MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions.SubmitTheIntroDbMarkersDays));
+            CopyString(mainPage, submitTheIntroDbMarkers, "SubmitTheIntroDbMarkersLibraries", nameof(MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions.SubmitTheIntroDbMarkersLibraries));
+
             var extractRecentMediaInfo = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ExtractRecentMediaInfo));
             CopyInt(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLimit", nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLimit));
             CopyString(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLibraries", nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLibraries));
@@ -122,6 +126,9 @@ namespace MediaInfoKeeper.Options.Store
                     "ReplaceExistingVideoPreviewThumbnails",
                     "ScanRecentIntroLimit",
                     "ScanRecentIntroLibraries",
+                    "SubmitTheIntroDbMarkersLimit",
+                    "SubmitTheIntroDbMarkersDays",
+                    "SubmitTheIntroDbMarkersLibraries",
                     "ExtractRecentMediaInfoLimit",
                     "ExtractRecentMediaInfoLibraries",
                     "DownloadDanmuXmlDays",

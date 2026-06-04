@@ -43,7 +43,7 @@ namespace MediaInfoKeeper.Options
         public string TheIntroDbBaseUrl { get; set; } = "https://api.theintrodb.org/v3";
 
         [DisplayName("TheIntroDB API Key")]
-        [Description("可选。填写后可提高 TheIntroDB 每日请求额度。")]
+        [Description("可选。填写后可提高 TheIntroDB 每日请求额度。共享必填。")]
         public string TheIntroDbApiKey { get; set; } = string.Empty;
         
         [DisplayName("启用片头打标")]

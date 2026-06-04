@@ -19,6 +19,8 @@ namespace MediaInfoKeeper.Options.View
         private const string RefreshRecentMetadataRunCommandId = "main.scheduled.run.refreshRecentMetadata";
         private const string ScanRecentIntroDialogCommandId = "main.scheduled.scanRecentIntro";
         private const string ScanRecentIntroRunCommandId = "main.scheduled.run.scanRecentIntro";
+        private const string SubmitTheIntroDbMarkersDialogCommandId = "main.scheduled.submitTheIntroDbMarkers";
+        private const string SubmitTheIntroDbMarkersRunCommandId = "main.scheduled.run.submitTheIntroDbMarkers";
         private const string ExtractRecentMediaInfoDialogCommandId = "main.scheduled.extractRecentMediaInfo";
         private const string ExtractRecentMediaInfoRunCommandId = "main.scheduled.run.extractRecentMediaInfo";
         private const string DownloadDanmuXmlDialogCommandId = "main.scheduled.downloadDanmuXml";
@@ -64,6 +66,11 @@ namespace MediaInfoKeeper.Options.View
                 return Task.FromResult<IPluginUIView>(new ScanRecentIntroTaskDialogView(this.pluginInfo.Id, this.Options));
             }
 
+            if (string.Equals(commandId, SubmitTheIntroDbMarkersDialogCommandId, StringComparison.Ordinal))
+            {
+                return Task.FromResult<IPluginUIView>(new SubmitTheIntroDbMarkersTaskDialogView(this.pluginInfo.Id, this.Options));
+            }
+
             if (string.Equals(commandId, ExtractRecentMediaInfoDialogCommandId, StringComparison.Ordinal))
             {
                 return Task.FromResult<IPluginUIView>(new ExtractRecentMediaInfoTaskDialogView(this.pluginInfo.Id, this.Options));
@@ -107,6 +114,11 @@ namespace MediaInfoKeeper.Options.View
             if (string.Equals(commandId, ScanRecentIntroRunCommandId, StringComparison.Ordinal))
             {
                 return this.RunScheduledTaskAsync<ScanRecentIntroTask>();
+            }
+
+            if (string.Equals(commandId, SubmitTheIntroDbMarkersRunCommandId, StringComparison.Ordinal))
+            {
+                return this.RunScheduledTaskAsync<SubmitTheIntroDbMarkersTask>();
             }
 
             if (string.Equals(commandId, ExtractRecentMediaInfoRunCommandId, StringComparison.Ordinal))

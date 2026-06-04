@@ -78,6 +78,26 @@ namespace MediaInfoKeeper.Options
             public string ScanRecentIntroLibraries { get; set; } = string.Empty;
         }
 
+        public class SubmitTheIntroDbMarkersTaskEditorOptions : EditableOptionsBase
+        {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("共享最近入库时间窗口（天）")]
+            [Description("仅处理指定天数内入库的电影和剧集，0 表示不限制。")]
+            [MinValue(0)]
+            [MaxValue(3650)]
+            public int SubmitTheIntroDbMarkersDays { get; set; } = 3;
+
+            [Browsable(false)]
+            public IEnumerable<EditorSelectOption> LibraryList { get; set; }
+
+            [DisplayName("媒体库范围")]
+            [Description("留空表示全部。")]
+            [EditMultilSelect]
+            [SelectItemsSource(nameof(LibraryList))]
+            public string SubmitTheIntroDbMarkersLibraries { get; set; } = string.Empty;
+        }
+
         public class ExtractRecentMediaInfoTaskEditorOptions : EditableOptionsBase
         {
             public override string EditorTitle => string.Empty;
@@ -276,6 +296,9 @@ namespace MediaInfoKeeper.Options
             [DisplayName("扫描片头")]
             public ScanRecentIntroTaskEditorOptions ScanRecentIntro { get; set; } = new ScanRecentIntroTaskEditorOptions();
 
+            [DisplayName("共享片头片尾")]
+            public SubmitTheIntroDbMarkersTaskEditorOptions SubmitTheIntroDbMarkers { get; set; } = new SubmitTheIntroDbMarkersTaskEditorOptions();
+
             [DisplayName("提取媒体信息")]
             public ExtractRecentMediaInfoTaskEditorOptions ExtractRecentMediaInfo { get; set; } = new ExtractRecentMediaInfoTaskEditorOptions();
 
@@ -340,6 +363,7 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor ??= new ScheduledTaskEditorOptions();
             ScheduledTasksEditor.RefreshRecentMetadata ??= new RefreshRecentMetadataTaskEditorOptions();
             ScheduledTasksEditor.ScanRecentIntro ??= new ScanRecentIntroTaskEditorOptions();
+            ScheduledTasksEditor.SubmitTheIntroDbMarkers ??= new SubmitTheIntroDbMarkersTaskEditorOptions();
             ScheduledTasksEditor.ExtractRecentMediaInfo ??= new ExtractRecentMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.DownloadDanmuXml ??= new DownloadDanmuXmlTaskEditorOptions();
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
@@ -354,6 +378,7 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor.LibraryList = LibraryList;
             ScheduledTasksEditor.RefreshRecentMetadata.LibraryList = LibraryList;
             ScheduledTasksEditor.ScanRecentIntro.LibraryList = LibraryList;
+            ScheduledTasksEditor.SubmitTheIntroDbMarkers.LibraryList = LibraryList;
             ScheduledTasksEditor.ExtractRecentMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.DownloadDanmuXml.LibraryList = LibraryList;
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
@@ -473,6 +498,7 @@ namespace MediaInfoKeeper.Options
                 CreateScheduledTaskEntry("备份媒体信息", "main.scheduled.exportExistingMediaInfo", "main.scheduled.run.exportExistingMediaInfo"),
                 CreateScheduledTaskEntry("恢复媒体信息", "main.scheduled.restoreMediaInfo", "main.scheduled.run.restoreMediaInfo"),
                 CreateScheduledTaskEntry("扫描外挂文件", "main.scheduled.scanExternalFiles", "main.scheduled.run.scanExternalFiles"),
+                CreateScheduledTaskEntry("共享片头片尾", "main.scheduled.submitTheIntroDbMarkers", "main.scheduled.run.submitTheIntroDbMarkers"),
                 CreateScheduledTaskEntry("重启Emby", "main.scheduled.restartEmby", "main.scheduled.run.restartEmby")
             });
         }

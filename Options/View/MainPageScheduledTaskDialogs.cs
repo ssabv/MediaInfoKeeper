@@ -65,6 +65,26 @@ namespace MediaInfoKeeper.Options.View
         }
     }
 
+    internal sealed class SubmitTheIntroDbMarkersTaskDialogView : MainPageTaskDialogView<MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions>
+    {
+        private readonly MainPageOptions owner;
+
+        public SubmitTheIntroDbMarkersTaskDialogView(string pluginId, MainPageOptions owner)
+            : base(pluginId, owner?.ScheduledTasksEditor?.SubmitTheIntroDbMarkers ?? new MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions(), "共享片头片尾")
+        {
+            this.owner = owner;
+        }
+
+        public override async Task OnOkCommand(string providerId, string commandId, string data)
+        {
+            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
+            if (this.owner?.ScheduledTasksEditor != null)
+            {
+                this.owner.ScheduledTasksEditor.SubmitTheIntroDbMarkers = this.Options;
+            }
+        }
+    }
+
     internal sealed class ExtractRecentMediaInfoTaskDialogView : MainPageTaskDialogView<MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions>
     {
         private readonly MainPageOptions owner;
