@@ -48,11 +48,16 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
             {
                 var blockStart = pos;
                 var blockLength = ReadInt16(data, ref pos);
-                _ = ReadString(data, 5, ref pos);
-                _ = ReadString(data, 4, ref pos);
+                var clipFileName = ReadString(data, 5, ref pos);
+                var clipFileType = ReadString(data, 4, ref pos);
                 pos++;
                 var multiAngle = (data[pos] >> 4) & 1;
                 pos += 2;
+
+                if (!string.IsNullOrWhiteSpace(clipFileName) && !string.IsNullOrWhiteSpace(clipFileType))
+                {
+                    result.ClipFileNames.Add(clipFileName + "." + clipFileType.ToLowerInvariant());
+                }
 
                 var rawTimeIn = NormalizeTimestamp(ReadInt32(data, ref pos));
                 var rawTimeOut = NormalizeTimestamp(ReadInt32(data, ref pos));
@@ -76,8 +81,13 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
                     pos += 2;
                     for (var j = 0; j < angleCount - 1; j++)
                     {
-                        _ = ReadString(data, 5, ref pos);
-                        _ = ReadString(data, 4, ref pos);
+                        var angleClipFileName = ReadString(data, 5, ref pos);
+                        var angleClipFileType = ReadString(data, 4, ref pos);
+                        if (!string.IsNullOrWhiteSpace(angleClipFileName) && !string.IsNullOrWhiteSpace(angleClipFileType))
+                        {
+                            result.ClipFileNames.Add(angleClipFileName + "." + angleClipFileType.ToLowerInvariant());
+                        }
+
                         pos++;
                     }
                 }
@@ -92,16 +102,6 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
                 var secondaryVideoStreams = data[pos++];
                 pos++;
                 pos += 5;
-
-                MediaInfoKeeper.Plugin.SharedLogger?.Debug(
-                    "BlurayMplsParser: clipIndex={0} pv={1} pa={2} pg={3} ig={4} sa={5} sv={6}",
-                    i,
-                    primaryVideoStreams,
-                    primaryAudioStreams,
-                    pgStreams,
-                    igStreams,
-                    secondaryAudioStreams,
-                    secondaryVideoStreams);
 
                 ReadStreams(data, ref pos, primaryVideoStreams, playlistStreams, ref streamOrder);
                 ReadStreams(data, ref pos, primaryAudioStreams, playlistStreams, ref streamOrder);

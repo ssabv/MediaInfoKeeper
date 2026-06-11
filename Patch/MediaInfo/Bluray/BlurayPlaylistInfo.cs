@@ -16,6 +16,8 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
 
         public List<double> Chapters { get; } = new List<double>();
 
+        public List<string> ClipFileNames { get; } = new List<string>();
+
         public List<BlurayPlaylistStream> Streams { get; } = new List<BlurayPlaylistStream>();
     }
 

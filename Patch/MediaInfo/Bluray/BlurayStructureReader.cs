@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using DiscUtils.Iso9660;
 using DiscUtils.Udf;
 
 namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
 {
     internal static class BlurayStructureReader
     {
-        private static MediaBrowser.Model.Logging.ILogger Logger => MediaInfoKeeper.Plugin.SharedLogger;
         private const double MainPlaylistDurationToleranceSeconds = 3d;
+        private const double MainPlaylistMovieMinSeconds = 20 * 60d;
+        private const double MainPlaylistMovieMaxSeconds = 4 * 60 * 60d;
 
         public static BlurayPlaylistInfo ReadMainPlaylist(string path, double? preferredDurationSeconds = null)
         {
@@ -27,15 +27,46 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
             return ReadFromDirectory(path, preferredDurationSeconds);
         }
 
-        private static void LogPlaylist(BlurayPlaylistInfo playlist)
+        internal static BlurayPlaylistInfo ReadMainPlaylistFromFileSystem(dynamic fileSystem, double? preferredDurationSeconds = null)
         {
-            Logger?.Debug(
-                "BlurayStructureReader: playlist={0} length={1:F3}s video={2} audio={3} subtitle={4}",
-                playlist?.PlaylistName ?? "<null>",
-                playlist?.TotalLengthSeconds ?? 0,
-                playlist?.VideoStreamCount ?? 0,
-                playlist?.AudioStreamCount ?? 0,
-                playlist?.SubtitleStreamCount ?? 0);
+            return ReadFromFileSystem(fileSystem, preferredDurationSeconds);
+        }
+
+        internal static List<string> ResolvePlaylistClipPaths(dynamic fileSystem, BlurayPlaylistInfo playlist)
+        {
+            var clipNames = (playlist?.ClipFileNames ?? new List<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+            if (clipNames.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            var streamDir = ResolveStreamDirectory(fileSystem);
+            if (streamDir == null)
+            {
+                return new List<string>();
+            }
+
+            var resolved = new List<string>();
+            foreach (var clipName in clipNames)
+            {
+                var candidate = CombineFileSystemPath(streamDir, clipName);
+                try
+                {
+                    var info = fileSystem.GetFileInfo(candidate);
+                    if (info.Exists)
+                    {
+                        resolved.Add(candidate);
+                    }
+                }
+                catch
+                {
+                    // Continue with the remaining clips; a playlist can reference optional angles.
+                }
+            }
+
+            return resolved;
         }
 
         private static BlurayPlaylistInfo ReadFromDirectory(string path, double? preferredDurationSeconds)
@@ -62,7 +93,6 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
                     continue;
                 }
 
-                LogPlaylist(playlist);
                 if (IsBetterMainPlaylist(playlist, best, preferredDurationSeconds))
                 {
                     best = playlist;
@@ -76,31 +106,14 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
         {
             using var stream = File.OpenRead(path);
             var udf = OpenUdf(stream);
-            if (udf != null)
+            if (udf == null)
             {
-                Logger?.Debug("BlurayStructureReader: UDF 打开成功 path={0}", path);
-                var result = ReadFromFileSystem(udf, preferredDurationSeconds);
-                if (result != null)
-                {
-                    return result;
-                }
-            }
-            else
-            {
-                Logger?.Debug("BlurayStructureReader: UDF 打开失败 path={0}", path);
+                return null;
             }
 
-            try
+            using (udf)
             {
-                stream.Position = 0;
-                var cd = new CDReader(stream, true, true);
-                Logger?.Debug("BlurayStructureReader: ISO9660 打开成功 path={0}", path);
-                return ReadFromFileSystem(cd, preferredDurationSeconds);
-            }
-            catch
-            {
-                Logger?.Debug("BlurayStructureReader: ISO9660 打开失败 path={0}", path);
-                return null;
+                return ReadFromFileSystem(udf, preferredDurationSeconds);
             }
         }
 
@@ -124,7 +137,6 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
                     continue;
                 }
 
-                LogPlaylist(playlist);
                 if (IsBetterMainPlaylist(playlist, best, preferredDurationSeconds))
                 {
                     best = playlist;
@@ -156,20 +168,25 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
                 }
             }
 
+            var candidateScore = GetMainPlaylistStreamScore(candidate);
+            var bestScore = GetMainPlaylistStreamScore(currentBest);
+            var candidateLooksLikeMovie = LooksLikeMoviePlaylist(candidate);
+            var bestLooksLikeMovie = LooksLikeMoviePlaylist(currentBest);
+
+            if (candidateLooksLikeMovie != bestLooksLikeMovie)
+            {
+                return candidateLooksLikeMovie;
+            }
+
+            if (candidateScore != bestScore)
+            {
+                return candidateScore > bestScore;
+            }
+
             var durationDelta = candidate.TotalLengthSeconds - currentBest.TotalLengthSeconds;
             if (durationDelta > MainPlaylistDurationToleranceSeconds)
             {
                 return true;
-            }
-
-            if (Math.Abs(durationDelta) <= MainPlaylistDurationToleranceSeconds)
-            {
-                var candidateScore = (candidate.SubtitleStreamCount * 100) + (candidate.AudioStreamCount * 10) + candidate.VideoStreamCount;
-                var bestScore = (currentBest.SubtitleStreamCount * 100) + (currentBest.AudioStreamCount * 10) + currentBest.VideoStreamCount;
-                if (candidateScore != bestScore)
-                {
-                    return candidateScore > bestScore;
-                }
             }
 
             if (durationDelta > 0)
@@ -178,6 +195,27 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
             }
 
             return false;
+        }
+
+        private static int GetMainPlaylistStreamScore(BlurayPlaylistInfo playlist)
+        {
+            if (playlist == null)
+            {
+                return 0;
+            }
+
+            return (playlist.SubtitleStreamCount * 100) + (playlist.AudioStreamCount * 10) + playlist.VideoStreamCount;
+        }
+
+        private static bool LooksLikeMoviePlaylist(BlurayPlaylistInfo playlist)
+        {
+            if (playlist == null)
+            {
+                return false;
+            }
+
+            return playlist.TotalLengthSeconds >= MainPlaylistMovieMinSeconds &&
+                   playlist.TotalLengthSeconds <= MainPlaylistMovieMaxSeconds;
         }
 
         private static string ResolvePlaylistDirectory(dynamic fileSystem)
@@ -196,30 +234,57 @@ namespace MediaInfoKeeper.Patch.MediaInfo.Bluray
             {
                 try
                 {
-                    var exists = fileSystem.DirectoryExists(candidate);
-                    Logger?.Debug("BlurayStructureReader: DirectoryExists path={0} exists={1}", candidate, exists);
-                    if (exists)
+                    if (fileSystem.DirectoryExists(candidate))
                     {
                         return candidate;
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Logger?.Debug("BlurayStructureReader: DirectoryExists 异常 path={0} error={1}", candidate, ex.Message);
+                    // Try the next path shape.
                 }
             }
 
-            try
+            return null;
+        }
+
+        private static string ResolveStreamDirectory(dynamic fileSystem)
+        {
+            var candidates = new[]
             {
-                var rootDirs = fileSystem.GetDirectories("/", "*", SearchOption.TopDirectoryOnly);
-                Logger?.Debug("BlurayStructureReader: root dirs={0}", string.Join("|", rootDirs));
-            }
-            catch (Exception ex)
+                "BDMV/STREAM",
+                "/BDMV/STREAM",
+                "BDMV\\STREAM",
+                "\\BDMV\\STREAM"
+            };
+
+            foreach (var candidate in candidates)
             {
-                Logger?.Debug("BlurayStructureReader: 枚举根目录失败 error={0}", ex.Message);
+                try
+                {
+                    if (fileSystem.DirectoryExists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+                catch
+                {
+                    // Try the next path shape.
+                }
             }
 
             return null;
+        }
+
+        private static string CombineFileSystemPath(string directory, string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return fileName;
+            }
+
+            var separator = directory.Contains("\\", StringComparison.Ordinal) ? "\\" : "/";
+            return directory.TrimEnd('\\', '/') + separator + fileName;
         }
 
         private static UdfReader OpenUdf(Stream stream)

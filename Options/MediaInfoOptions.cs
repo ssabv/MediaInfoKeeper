@@ -40,11 +40,6 @@ namespace MediaInfoKeeper.Options
         [MinValue(1), MaxValue(20)]
         public int MaxConcurrentCount { get; set; } = 3;
 
-        [DisplayName("自定义 ffprobe 路径")]
-        [Description("用于提取 ISO 媒体信息，默认为空。")]
-        [EditFilePicker]
-        public string CustomFfprobePath { get; set; }
-
         public void Initialize()
         {
         }
