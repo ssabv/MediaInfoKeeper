@@ -105,26 +105,6 @@ namespace MediaInfoKeeper.Options.View
         }
     }
 
-    internal sealed class DownloadDanmuXmlTaskDialogView : MainPageTaskDialogView<MainPageOptions.DownloadDanmuXmlTaskEditorOptions>
-    {
-        private readonly MainPageOptions owner;
-
-        public DownloadDanmuXmlTaskDialogView(string pluginId, MainPageOptions owner)
-            : base(pluginId, owner?.ScheduledTasksEditor?.DownloadDanmuXml ?? new MainPageOptions.DownloadDanmuXmlTaskEditorOptions(), "下载弹幕")
-        {
-            this.owner = owner;
-        }
-
-        public override async Task OnOkCommand(string providerId, string commandId, string data)
-        {
-            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
-            if (this.owner?.ScheduledTasksEditor != null)
-            {
-                this.owner.ScheduledTasksEditor.DownloadDanmuXml = this.Options;
-            }
-        }
-    }
-
     internal sealed class ExportExistingMediaInfoTaskDialogView : MainPageTaskDialogView<MainPageOptions.ExportExistingMediaInfoTaskEditorOptions>
     {
         private readonly MainPageOptions owner;

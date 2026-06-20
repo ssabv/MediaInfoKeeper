@@ -441,8 +441,6 @@ namespace MediaInfoKeeper
                 NormalizeScopedLibraries(scheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries);
             scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries =
                 NormalizeScopedLibraries(scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries);
-            scheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries =
-                NormalizeScopedLibraries(scheduledTasksEditor.DownloadDanmuXml.DownloadDanmuXmlLibraries);
             scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries =
                 NormalizeScopedLibraries(scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries);
             scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries =

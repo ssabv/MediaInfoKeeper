@@ -68,10 +68,6 @@ namespace MediaInfoKeeper.Options.Store
             CopyInt(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLimit", nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLimit));
             CopyString(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLibraries", nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLibraries));
 
-            var downloadDanmuXml = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.DownloadDanmuXml));
-            CopyInt(mainPage, downloadDanmuXml, "DownloadDanmuXmlDays", nameof(MainPageOptions.DownloadDanmuXmlTaskEditorOptions.DownloadDanmuXmlDays));
-            CopyString(mainPage, downloadDanmuXml, "DownloadDanmuXmlLibraries", nameof(MainPageOptions.DownloadDanmuXmlTaskEditorOptions.DownloadDanmuXmlLibraries));
-
             var exportExistingMediaInfo = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ExportExistingMediaInfo));
             CopyString(mainPage, exportExistingMediaInfo, "ExportExistingMediaInfoLibraries", nameof(MainPageOptions.ExportExistingMediaInfoTaskEditorOptions.ExportExistingMediaInfoLibraries));
 
@@ -131,8 +127,6 @@ namespace MediaInfoKeeper.Options.Store
                     "SubmitTheIntroDbMarkersLibraries",
                     "ExtractRecentMediaInfoLimit",
                     "ExtractRecentMediaInfoLibraries",
-                    "DownloadDanmuXmlDays",
-                    "DownloadDanmuXmlLibraries",
                     "ExportExistingMediaInfoLibraries",
                     "RestoreMediaInfoLibraries",
                     "ScanExternalFilesLibraries");

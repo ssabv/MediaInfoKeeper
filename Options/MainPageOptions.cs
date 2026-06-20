@@ -117,26 +117,6 @@ namespace MediaInfoKeeper.Options
             public string ExtractRecentMediaInfoLibraries { get; set; } = string.Empty;
         }
 
-        public class DownloadDanmuXmlTaskEditorOptions : EditableOptionsBase
-        {
-            public override string EditorTitle => string.Empty;
-
-            [DisplayName("下载最近入库时间窗口（天）")]
-            [Description("仅处理指定天数内入库的条目，0 表示不限制。")]
-            [MinValue(0)]
-            [MaxValue(3650)]
-            public int DownloadDanmuXmlDays { get; set; } = 3;
-
-            [Browsable(false)]
-            public IEnumerable<EditorSelectOption> LibraryList { get; set; }
-
-            [DisplayName("媒体库范围")]
-            [Description("留空表示全部。")]
-            [EditMultilSelect]
-            [SelectItemsSource(nameof(LibraryList))]
-            public string DownloadDanmuXmlLibraries { get; set; } = string.Empty;
-        }
-
         public class ExportExistingMediaInfoTaskEditorOptions : EditableOptionsBase
         {
             public override string EditorTitle => string.Empty;
@@ -302,9 +282,6 @@ namespace MediaInfoKeeper.Options
             [DisplayName("提取媒体信息")]
             public ExtractRecentMediaInfoTaskEditorOptions ExtractRecentMediaInfo { get; set; } = new ExtractRecentMediaInfoTaskEditorOptions();
 
-            [DisplayName("下载弹幕")]
-            public DownloadDanmuXmlTaskEditorOptions DownloadDanmuXml { get; set; } = new DownloadDanmuXmlTaskEditorOptions();
-
             [DisplayName("备份媒体信息")]
             public ExportExistingMediaInfoTaskEditorOptions ExportExistingMediaInfo { get; set; } = new ExportExistingMediaInfoTaskEditorOptions();
 
@@ -365,7 +342,6 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor.ScanRecentIntro ??= new ScanRecentIntroTaskEditorOptions();
             ScheduledTasksEditor.SubmitTheIntroDbMarkers ??= new SubmitTheIntroDbMarkersTaskEditorOptions();
             ScheduledTasksEditor.ExtractRecentMediaInfo ??= new ExtractRecentMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.DownloadDanmuXml ??= new DownloadDanmuXmlTaskEditorOptions();
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.ScanExternalFiles ??= new ScanExternalFilesTaskEditorOptions();
@@ -380,7 +356,6 @@ namespace MediaInfoKeeper.Options
             ScheduledTasksEditor.ScanRecentIntro.LibraryList = LibraryList;
             ScheduledTasksEditor.SubmitTheIntroDbMarkers.LibraryList = LibraryList;
             ScheduledTasksEditor.ExtractRecentMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.DownloadDanmuXml.LibraryList = LibraryList;
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.ScanExternalFiles.LibraryList = LibraryList;
@@ -494,7 +469,6 @@ namespace MediaInfoKeeper.Options
                 CreateScheduledTaskEntry("刷新媒体元数据", "main.scheduled.refreshRecentMetadata", "main.scheduled.run.refreshRecentMetadata"),
                 CreateScheduledTaskEntry("扫描片头", "main.scheduled.scanRecentIntro", "main.scheduled.run.scanRecentIntro"),
                 CreateScheduledTaskEntry("提取媒体信息", "main.scheduled.extractRecentMediaInfo", "main.scheduled.run.extractRecentMediaInfo"),
-                CreateScheduledTaskEntry("下载弹幕", "main.scheduled.downloadDanmuXml", "main.scheduled.run.downloadDanmuXml"),
                 CreateScheduledTaskEntry("备份媒体信息", "main.scheduled.exportExistingMediaInfo", "main.scheduled.run.exportExistingMediaInfo"),
                 CreateScheduledTaskEntry("恢复媒体信息", "main.scheduled.restoreMediaInfo", "main.scheduled.run.restoreMediaInfo"),
                 CreateScheduledTaskEntry("扫描外挂文件", "main.scheduled.scanExternalFiles", "main.scheduled.run.scanExternalFiles"),

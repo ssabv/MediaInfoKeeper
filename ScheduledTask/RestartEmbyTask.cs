@@ -39,7 +39,7 @@ namespace MediaInfoKeeper.ScheduledTask
 
         public string Key => "MediaInfoKeeperRestartEmbyTask";
 
-        public string Name => "09.重启Emby";
+        public string Name => "08.重启Emby";
 
         public string Description => "在没有用户播放且没有 Live TV 录制时重启 Emby；否则会延后 30 分钟再检查。";
 

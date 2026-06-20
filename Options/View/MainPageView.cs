@@ -23,8 +23,6 @@ namespace MediaInfoKeeper.Options.View
         private const string SubmitTheIntroDbMarkersRunCommandId = "main.scheduled.run.submitTheIntroDbMarkers";
         private const string ExtractRecentMediaInfoDialogCommandId = "main.scheduled.extractRecentMediaInfo";
         private const string ExtractRecentMediaInfoRunCommandId = "main.scheduled.run.extractRecentMediaInfo";
-        private const string DownloadDanmuXmlDialogCommandId = "main.scheduled.downloadDanmuXml";
-        private const string DownloadDanmuXmlRunCommandId = "main.scheduled.run.downloadDanmuXml";
         private const string ExportExistingMediaInfoDialogCommandId = "main.scheduled.exportExistingMediaInfo";
         private const string ExportExistingMediaInfoRunCommandId = "main.scheduled.run.exportExistingMediaInfo";
         private const string RestoreMediaInfoDialogCommandId = "main.scheduled.restoreMediaInfo";
@@ -76,11 +74,6 @@ namespace MediaInfoKeeper.Options.View
                 return Task.FromResult<IPluginUIView>(new ExtractRecentMediaInfoTaskDialogView(this.pluginInfo.Id, this.Options));
             }
 
-            if (string.Equals(commandId, DownloadDanmuXmlDialogCommandId, StringComparison.Ordinal))
-            {
-                return Task.FromResult<IPluginUIView>(new DownloadDanmuXmlTaskDialogView(this.pluginInfo.Id, this.Options));
-            }
-
             if (string.Equals(commandId, ExportExistingMediaInfoDialogCommandId, StringComparison.Ordinal))
             {
                 return Task.FromResult<IPluginUIView>(new ExportExistingMediaInfoTaskDialogView(this.pluginInfo.Id, this.Options));
@@ -124,11 +117,6 @@ namespace MediaInfoKeeper.Options.View
             if (string.Equals(commandId, ExtractRecentMediaInfoRunCommandId, StringComparison.Ordinal))
             {
                 return this.RunScheduledTaskAsync<ExtractRecentMediaInfoTask>();
-            }
-
-            if (string.Equals(commandId, DownloadDanmuXmlRunCommandId, StringComparison.Ordinal))
-            {
-                return this.RunScheduledTaskAsync<DownloadDanmuXmlTask>();
             }
 
             if (string.Equals(commandId, ExportExistingMediaInfoRunCommandId, StringComparison.Ordinal))
