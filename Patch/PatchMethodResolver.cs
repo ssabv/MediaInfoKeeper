@@ -22,8 +22,18 @@ namespace MediaInfoKeeper.Patch
         public Type ReturnType { get; set; }
 
         public bool? IsStatic { get; set; }
+    }
 
-        public Func<MethodInfo, bool> Predicate { get; set; }
+    /// <summary>
+    /// 定义目标构造函数的精确签名条件。
+    /// </summary>
+    public sealed class ConstructorSignatureProfile
+    {
+        public string Name { get; set; }
+
+        public BindingFlags BindingFlags { get; set; } = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        public Type[] ParameterTypes { get; set; } = Type.EmptyTypes;
     }
 
     /// <summary>
@@ -50,6 +60,49 @@ namespace MediaInfoKeeper.Patch
                 type?.FullName ?? "<null>",
                 versionForLog?.ToString() ?? "<unknown>");
             return null;
+        }
+
+        public static ConstructorInfo ResolveConstructor(
+            Type type,
+            Version versionForLog,
+            ConstructorSignatureProfile exactProfile,
+            ILogger logger,
+            string context)
+        {
+            if (type == null || !IsValidProfile(exactProfile))
+            {
+                PatchLog.ResolveFailed(
+                    logger,
+                    context ?? "ConstructorResolve",
+                    type?.FullName ?? "<null>",
+                    versionForLog?.ToString() ?? "<unknown>");
+                return null;
+            }
+
+            var constructor = type.GetConstructor(
+                exactProfile.BindingFlags,
+                null,
+                exactProfile.ParameterTypes,
+                null);
+
+            if (constructor == null)
+            {
+                PatchLog.ResolveFailed(
+                    logger,
+                    context ?? "ConstructorResolve",
+                    type.FullName,
+                    versionForLog?.ToString() ?? "<unknown>");
+                return null;
+            }
+
+            PatchLog.ResolveHit(
+                logger,
+                context ?? "ConstructorResolve",
+                "exact",
+                exactProfile.Name ?? ".ctor",
+                BuildSignature(constructor),
+                versionForLog?.ToString() ?? "<unknown>");
+            return constructor;
         }
 
         private static MethodInfo TryResolve(
@@ -143,7 +196,7 @@ namespace MediaInfoKeeper.Patch
                 }
             }
 
-            return profile.Predicate == null || profile.Predicate(method);
+            return true;
         }
 
         private static bool IsParameterTypeMatch(Type actualType, Type expectedType)
@@ -175,6 +228,11 @@ namespace MediaInfoKeeper.Patch
                    profile.ParameterTypes != null;
         }
 
+        private static bool IsValidProfile(ConstructorSignatureProfile profile)
+        {
+            return profile != null && profile.ParameterTypes != null;
+        }
+
         private static string BuildSignature(MethodInfo method)
         {
             if (method == null)
@@ -189,6 +247,20 @@ namespace MediaInfoKeeper.Patch
                 method.Name,
                 parameters,
                 method.ReturnType?.Name ?? "<void>");
+        }
+
+        private static string BuildSignature(ConstructorInfo constructor)
+        {
+            if (constructor == null)
+            {
+                return "<null>";
+            }
+
+            var parameters = string.Join(",", constructor.GetParameters().Select(p => p.ParameterType.Name));
+            return string.Format(
+                "{0}..ctor({1})",
+                constructor.DeclaringType?.FullName ?? "<unknown>",
+                parameters);
         }
     }
 }

@@ -135,17 +135,23 @@ namespace MediaInfoKeeper.Patch
                 }
 
                 var parserVideoType = parserGeneric.MakeGenericType(typeof(Video));
-                parserConstructor = parserVideoType.GetConstructor(
-                    BindingFlags.Instance | BindingFlags.Public,
-                    null,
-                    new[]
+                parserConstructor = PatchMethodResolver.ResolveConstructor(
+                    parserVideoType,
+                    version,
+                    new ConstructorSignatureProfile
                     {
-                        typeof(ILogger),
-                        typeof(IConfigurationManager),
-                        typeof(IProviderManager),
-                        typeof(IFileSystem)
+                        Name = "base-nfo-parser-video-ctor-exact",
+                        BindingFlags = BindingFlags.Instance | BindingFlags.Public,
+                        ParameterTypes = new[]
+                        {
+                            typeof(ILogger),
+                            typeof(IConfigurationManager),
+                            typeof(IProviderManager),
+                            typeof(IFileSystem)
+                        }
                     },
-                    null);
+                    logger,
+                    "NfoMetadataEnhance.BaseNfoParser.ctor");
 
                 getPersonFromXmlNode = PatchMethodResolver.Resolve(
                     parserVideoType,
@@ -168,11 +174,7 @@ namespace MediaInfoKeeper.Patch
                     return;
                 }
 
-                PatchLog.Patched(
-                    logger,
-                    nameof(NfoMetadataEnhance),
-                    $"{parserVideoType.FullName}..ctor(ILogger,IConfigurationManager,IProviderManager,IFileSystem)",
-                    version?.ToString());
+                PatchLog.Patched(logger, nameof(NfoMetadataEnhance), parserConstructor.ToString(), version?.ToString());
                 PatchLog.Patched(logger, nameof(NfoMetadataEnhance), getPersonFromXmlNode);
 
                 harmony.Patch(

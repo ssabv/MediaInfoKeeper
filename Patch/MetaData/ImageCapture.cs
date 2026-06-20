@@ -48,9 +48,22 @@ namespace MediaInfoKeeper.Patch
                 var assemblyVersion = embyProviders?.GetName().Version;
                 var videoImageProvider = embyProviders?.GetType("Emby.Providers.MediaInfo.VideoImageProvider");
                 var audioImageProvider = embyProviders?.GetType("Emby.Providers.MediaInfo.AudioImageProvider");
+                var controllerVersion = typeof(BaseItem).Assembly.GetName().Version;
 
-                isShortcutGetter = typeof(BaseItem).GetProperty("IsShortcut", BindingFlags.Instance | BindingFlags.Public)
-                    ?.GetGetMethod();
+                isShortcutGetter = PatchMethodResolver.Resolve(
+                    typeof(BaseItem),
+                    controllerVersion,
+                    new MethodSignatureProfile
+                    {
+                        Name = "baseitem-get-isshortcut-exact",
+                        MethodName = "get_IsShortcut",
+                        BindingFlags = BindingFlags.Instance | BindingFlags.Public,
+                        ParameterTypes = Type.EmptyTypes,
+                        ReturnType = typeof(bool),
+                        IsStatic = false
+                    },
+                    logger,
+                    "ImageCapture.BaseItem.get_IsShortcut");
                 supportsVideoImageCapture = PatchMethodResolver.Resolve(
                     videoImageProvider,
                     assemblyVersion,
@@ -100,8 +113,20 @@ namespace MediaInfoKeeper.Patch
                     },
                     logger,
                     "ImageCapture.VideoImageProvider.GetImage");
-                supportsThumbnailsGetter = typeof(Video).GetProperty("SupportsThumbnails", BindingFlags.Public | BindingFlags.Instance)
-                    ?.GetGetMethod();
+                supportsThumbnailsGetter = PatchMethodResolver.Resolve(
+                    typeof(Video),
+                    controllerVersion,
+                    new MethodSignatureProfile
+                    {
+                        Name = "video-get-supportsthumbnails-exact",
+                        MethodName = "get_SupportsThumbnails",
+                        BindingFlags = BindingFlags.Instance | BindingFlags.Public,
+                        ParameterTypes = Type.EmptyTypes,
+                        ReturnType = typeof(bool),
+                        IsStatic = false
+                    },
+                    logger,
+                    "ImageCapture.Video.get_SupportsThumbnails");
 
                 if (isShortcutGetter == null ||
                     supportsVideoImageCapture == null ||
