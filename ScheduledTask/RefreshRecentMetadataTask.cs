@@ -6,9 +6,7 @@ using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Persistence;
 using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Tasks;
 using MediaInfoKeeper.Common;
@@ -73,11 +71,13 @@ namespace MediaInfoKeeper.ScheduledTask
                     break;
                 }
 
-                FireAndForgetItemRefresh(
-                    item,
-                    replaceMetadata,
-                    replaceImages,
-                    replaceThumbnails);
+                var created = item.DateCreated == default
+                    ? "unknown"
+                    : ConfiguredDateTime.ToConfiguredOffset(item.DateCreated).ToString("yyyy-MM-dd HH:mm:ss zzz");
+                this.logger.Info($"计划刷新元数据 {item.FileName ?? item.Path} 入库日期 = {created}");
+
+                var options = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
+                _ = MetaDataRunner.RefreshMetaDataAsync(item.InternalId, options, CancellationToken.None);
                 ReportProgress(totalWork, progress, ++submitted);
             }
 
@@ -93,57 +93,17 @@ namespace MediaInfoKeeper.ScheduledTask
                     break;
                 }
 
-                FireAndForgetDoubanRoleRefresh(target);
+                this.logger.Info($"计划刷新演员角色元数据 {FormatItemLabel(target.Name, target.ProductionYear)}");
+
+                var roleOptions = BuildRefreshOptions(replaceMetadata: true, replaceImages: false, replaceThumbnails: false);
+                roleOptions.Recursive = false;
+                _ = MetaDataRunner.RefreshMetaDataAsync(target.ItemId, roleOptions, CancellationToken.None);
                 ReportProgress(totalWork, progress, ++submitted);
             }
 
             progress.Report(100.0);
             this.logger.Info("最近条目刷新元数据计划任务已提交后台执行");
             return Task.CompletedTask;
-        }
-
-        private void FireAndForgetItemRefresh(
-            BaseItem item,
-            bool replaceMetadata,
-            bool replaceImages,
-            bool replaceThumbnails)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await ProcessItemAsync(
-                            item,
-                            replaceMetadata,
-                            replaceImages,
-                            replaceThumbnails,
-                            CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    this.logger.Error($"计划任务失败: {item.Path}");
-                    this.logger.Error(e.Message);
-                    this.logger.Debug(e.StackTrace);
-                }
-            });
-        }
-
-        private void FireAndForgetDoubanRoleRefresh(RoleRefreshTarget target)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await RefreshMetadataForDoubanRoleAsync(target, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    this.logger.Error($"计划任务刷新豆瓣演员角色元数据失败: itemid={target.ItemId}");
-                    this.logger.Error(e.Message);
-                    this.logger.Debug(e.StackTrace);
-                }
-            });
         }
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
@@ -192,80 +152,6 @@ namespace MediaInfoKeeper.ScheduledTask
             };
         }
 
-        private async Task ProcessItemAsync(
-            BaseItem item,
-            bool replaceMetadata,
-            bool replaceImages,
-            bool replaceThumbnails,
-            CancellationToken cancellationToken)
-        {
-            var created = item.DateCreated == default
-                ? "unknown"
-                : ConfiguredDateTime.ToConfiguredOffset(item.DateCreated).ToString("yyyy-MM-dd HH:mm:ss zzz");
-            this.logger.Info($"刷新元数据 {item.FileName ?? item.Path} 入库日期 = {created}");
-
-            var options = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
-            await MetaDataRunner
-                .RefreshMetaDataAsync(item.InternalId, options, cancellationToken)
-                .ConfigureAwait(false);
-
-            // 刷新完元数据要重新从json恢复媒体信息，
-            // 非strm会重新 ffprobe/ffmpeg，但是没有allow所以会拦截，
-            // strm由 MediaInfoClearGuard 防止被写空，不必重复恢复
-            // Plugin.MediaSourceInfoStore.ApplyToItem(item);
-            // if (item is Video)
-            // {
-            //     Plugin.ChaptersStore.ApplyToItem(item);
-            // }
-            // else if (item is Audio)
-            // {
-            //     Plugin.EmbeddedInfoStore.ApplyToItem(item);
-            // }
-        }
-
-        private async Task RefreshMetadataForDoubanRoleAsync(RoleRefreshTarget target, CancellationToken cancellationToken)
-        {
-            var item = this.libraryManager.GetItemById(target.ItemId) as BaseItem;
-            if (item == null)
-            {
-                this.logger.Info($"跳过演员角色元数据刷新: 未找到 {FormatItemLabel(target.Name, target.ProductionYear)} itemid={target.ItemId}");
-                return;
-            }
-
-            this.logger.Info($"刷新演员角色元数据 {FormatItemLabel(item.Name, item.ProductionYear)}");
-
-            var beforeRoles = BuildPeopleRoleMap(this.libraryManager.GetItemPeople(item));
-
-            var options = BuildRefreshOptions(replaceMetadata: true, replaceImages: false, replaceThumbnails: false);
-            options.Recursive = false;
-            await MetaDataRunner
-                .RefreshMetaDataAsync(item.InternalId, options, cancellationToken)
-                .ConfigureAwait(false);
-
-            var afterRoles = BuildPeopleRoleMap(this.libraryManager.GetItemPeople(item));
-            var updatedRoles = afterRoles
-                .Where(entry =>
-                    entry.Value.HasChineseRole &&
-                    beforeRoles.TryGetValue(entry.Key, out var before) &&
-                    !string.Equals(before.Role, entry.Value.Role, StringComparison.Ordinal))
-                .Select(entry =>
-                {
-                    var before = beforeRoles[entry.Key];
-                    return $"{entry.Value.Name}: {FormatRoleValue(before.Role)} -> {FormatRoleValue(entry.Value.Role)}";
-                })
-                .ToList();
-
-            if (updatedRoles.Count > 0)
-            {
-                this.logger.Info($"豆瓣演员角色已更新 {FormatItemLabel(item.Name, item.ProductionYear)}: {string.Join(", ", updatedRoles)}");
-            }
-
-            if (item is Series series)
-            {
-                PropagateSeriesPeopleRoles(series);
-            }
-        }
-
         private List<RoleRefreshTarget> CollectMetadataRefreshItemIds(IEnumerable<BaseItem> items)
         {
             var result = new List<RoleRefreshTarget>();
@@ -300,57 +186,6 @@ namespace MediaInfoKeeper.ScheduledTask
             return result;
         }
 
-        private void PropagateSeriesPeopleRoles(Series series)
-        {
-            if (!IsDoubanRoleEnabled(series))
-            {
-                return;
-            }
-
-            var seriesPeople = this.libraryManager.GetItemPeople(series);
-            if (seriesPeople == null || seriesPeople.Count == 0)
-            {
-                return;
-            }
-
-            var roleMap = seriesPeople
-                .Where(p => p != null &&
-                            (p.Type == PersonType.Actor || p.Type == PersonType.GuestStar) &&
-                            LanguageUtility.IsChinese(p.Role))
-                .GroupBy(p => NormalizePersonName(p.Name), StringComparer.OrdinalIgnoreCase)
-                .Where(g => !string.IsNullOrWhiteSpace(g.Key))
-                .ToDictionary(g => g.Key, g => g.First().Role, StringComparer.OrdinalIgnoreCase);
-
-            if (roleMap.Count == 0)
-            {
-                return;
-            }
-
-            var children = this.libraryManager.GetItemList(new InternalItemsQuery
-            {
-                SeriesIds = new[] { series.InternalId },
-                IncludeItemTypes = new[] { nameof(Season), nameof(Episode) },
-                Recursive = true
-            });
-
-            foreach (var child in children)
-            {
-                var people = this.libraryManager.GetItemPeople(child);
-                if (people == null || people.Count == 0)
-                {
-                    continue;
-                }
-
-                if (!TryApplySeriesRoleMap(people, roleMap))
-                {
-                    continue;
-                }
-
-                Plugin.Instance.ItemRepository.UpdatePeople(child.InternalId, people);
-            }
-
-        }
-
         private bool IsDoubanRoleEnabled(BaseItem item)
         {
             if (item == null)
@@ -363,88 +198,11 @@ namespace MediaInfoKeeper.ScheduledTask
                    item.IsMetadataFetcherEnabled(libraryOptions, Provider.DoubanRoleProvider.ProviderName);
         }
 
-        private static bool TryApplySeriesRoleMap(
-            IEnumerable<PersonInfo> people,
-            IReadOnlyDictionary<string, string> roleMap)
-        {
-            var changed = false;
-            foreach (var person in people)
-            {
-                if (!ShouldUpdateChildPersonRole(person, roleMap, out var chineseRole))
-                {
-                    continue;
-                }
-
-                person.Role = chineseRole;
-                changed = true;
-            }
-
-            return changed;
-        }
-
-        private static bool ShouldUpdateChildPersonRole(
-            PersonInfo person,
-            IReadOnlyDictionary<string, string> roleMap,
-            out string chineseRole)
-        {
-            chineseRole = null;
-            if (person == null || (person.Type != PersonType.Actor && person.Type != PersonType.GuestStar))
-            {
-                return false;
-            }
-
-            var normalizedName = NormalizePersonName(person.Name);
-            if (string.IsNullOrWhiteSpace(normalizedName) ||
-                !roleMap.TryGetValue(normalizedName, out chineseRole) ||
-                !LanguageUtility.IsChinese(chineseRole) ||
-                string.Equals(person.Role, chineseRole, StringComparison.Ordinal))
-            {
-                chineseRole = null;
-                return false;
-            }
-
-            return true;
-        }
-
-        private static string NormalizePersonName(string name)
-        {
-            return string.IsNullOrWhiteSpace(name)
-                ? null
-                : name.Trim().Replace("·", string.Empty).Replace(" ", string.Empty);
-        }
-
-        private static Dictionary<string, (string Name, string Role, bool HasChineseRole)> BuildPeopleRoleMap(IEnumerable<PersonInfo> people)
-        {
-            var result = new Dictionary<string, (string Name, string Role, bool HasChineseRole)>(StringComparer.OrdinalIgnoreCase);
-            foreach (var person in people ?? Enumerable.Empty<PersonInfo>())
-            {
-                if (person == null || (person.Type != PersonType.Actor && person.Type != PersonType.GuestStar))
-                {
-                    continue;
-                }
-
-                var normalizedName = NormalizePersonName(person.Name);
-                if (string.IsNullOrWhiteSpace(normalizedName))
-                {
-                    continue;
-                }
-
-                result[normalizedName] = (person.Name, person.Role, LanguageUtility.IsChinese(person.Role));
-            }
-
-            return result;
-        }
-
         private static string FormatItemLabel(string name, int? productionYear)
         {
             return productionYear.HasValue
                 ? $"{name} ({productionYear.Value})"
                 : name ?? string.Empty;
-        }
-
-        private static string FormatRoleValue(string role)
-        {
-            return string.IsNullOrWhiteSpace(role) ? "空" : role;
         }
 
         private static void ReportProgress(int totalWork, IProgress<double> progress, int completed)
