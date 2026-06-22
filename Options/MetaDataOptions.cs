@@ -34,7 +34,7 @@ namespace MediaInfoKeeper.Options
         public bool EnableImageCapture { get; set; } = true;
         
         [DisplayName("刷新元数据并发数")]
-        [Description("设置插件刷新元数据任务的最大并发数，默认 3。")]
+        [Description("设置插件刷新元数据任务的最大并发数，修改后重启生效，默认 3。")]
         [MinValue(1), MaxValue(20)]
         public int MaxConcurrentCount { get; set; } = 3;
         
@@ -187,8 +187,9 @@ namespace MediaInfoKeeper.Options
 
             AddGroup("MetaData", "Emby 元数据刷新时，插件会监听元数据刷新过程，阻止媒体信息丢失。",
                 nameof(EnableImageCapture),
-                nameof(MaxConcurrentCount),
-                nameof(BlockNonFallbackLanguage));
+                nameof(BlockNonFallbackLanguage),
+                nameof(MaxConcurrentCount)
+                );
             
             AddGroup("TMDB", "",
                 nameof(EnableAlternativeTitleFallback),

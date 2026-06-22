@@ -71,11 +71,6 @@ namespace MediaInfoKeeper.ScheduledTask
                     break;
                 }
 
-                var created = item.DateCreated == default
-                    ? "unknown"
-                    : ConfiguredDateTime.ToConfiguredOffset(item.DateCreated).ToString("yyyy-MM-dd HH:mm:ss zzz");
-                this.logger.Info($"计划刷新元数据 {item.FileName ?? item.Path} 入库日期 = {created}");
-
                 var options = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
                 _ = MetaDataRunner.RefreshMetaDataAsync(item.InternalId, options, CancellationToken.None, priority:RefreshPriority.High);
                 ReportProgress(totalWork, progress, ++submitted);

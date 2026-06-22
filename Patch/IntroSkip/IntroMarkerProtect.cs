@@ -444,7 +444,7 @@ namespace MediaInfoKeeper.Patch
             var displayName = FormatItem(item, itemId);
             if (HasAnyStoredChapters(item))
             {
-                logger?.Info($"已阻止章节信息丢失: {FormatItemName(item, itemId)}");
+                logger?.Debug($"已阻止章节信息丢失: {FormatItemName(item, itemId)}");
                 return false;
             }
 

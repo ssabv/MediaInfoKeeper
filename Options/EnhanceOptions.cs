@@ -106,7 +106,7 @@ namespace MediaInfoKeeper.Options
         public bool TakeOverSystemLibraryNew { get; set; } = false;
 
         [DisplayName("接管刷新队列")]
-        [Description("接管 Emby 原生元数据刷新队列入口，按刷新意图分流到插件的元数据/媒体信息 runner，并使用插件并发设置控制执行。")]
+        [Description("接管 Emby 原生元数据刷新队列入口，按刷新意图分流到插件的元数据/媒体信息 runner。")]
         public bool TakeOverRefreshQueue { get; set; } = true;
         
         [DisplayName("优化封面显示")]

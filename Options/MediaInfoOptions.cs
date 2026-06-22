@@ -41,7 +41,7 @@ namespace MediaInfoKeeper.Options
         public int ExtractMediaInfoAttemptCount { get; set; } = 3;
 
         [DisplayName("提取任务并发数")]
-        [Description("设置媒体信息提取的最大并发数，默认 1。")]
+        [Description("设置媒体信息提取的最大并发数，修改后重启生效，默认 1。")]
         [MinValue(1), MaxValue(20)]
         public int MaxConcurrentCount { get; set; } = 1;
 

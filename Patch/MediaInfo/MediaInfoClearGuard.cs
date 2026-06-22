@@ -182,7 +182,7 @@ namespace MediaInfoKeeper.Patch
                 return true;
             }
 
-            logger?.Info($"已阻止媒体信息丢失: {item.FileName ?? item.Path}");
+            logger?.Debug($"已阻止媒体信息丢失: {item.FileName ?? item.Path}");
             return false;
         }
 
