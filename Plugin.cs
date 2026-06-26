@@ -612,9 +612,12 @@ namespace MediaInfoKeeper
                     return;
                 }
                 this.logger.Info($"新入库事件 {e.Item.FileName ?? e.Item.Path}");
-                
-                // 异步刷新一次元数据，让 Emby 刮削。
-                _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority:RefreshPriority.Highest);
+
+                if (e.Item is not Audio)
+                {
+                    // 视频，异步刷新一次元数据，让 Emby 先刮削，音乐提取内嵌封面需要媒体流，要等媒体信息先提取。
+                    _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority:RefreshPriority.Highest);
+                }
                 
                 if (!LibraryService.IsItemInCatchupLibraryScope(e.Item))
                 {
@@ -666,6 +669,11 @@ namespace MediaInfoKeeper
                                     {
                                         this.logger.Info($"入库媒体信息: 提取失败 item={itemDisplayName}");
                                     }
+                                    // 提取成功且 item 是音乐
+                                    else if (e.Item is Audio)
+                                    {
+                                        _ = MetaDataRunner.RefreshMetaDataAsync(itemId, priority: RefreshPriority.Highest);
+                                    }
                                 }
                                 catch (Exception extractEx)
                                 {
@@ -679,9 +687,15 @@ namespace MediaInfoKeeper
                     // 使用Json媒体信息数据，恢复成功后扫描所在物理路径，确保库状态刷新。
                     else if (restoreResult == MediaInfoDocument.MediaInfoRestoreResult.Restored)
                     {
-                        var itemPath = e.Item.Path ?? e.Item.ContainingFolderPath ?? e.Item.Id.ToString();
+                        var itemPath = e.Item.Path ?? e.Item.ContainingFolderPath ?? e.Item.InternalId.ToString();
                         var parentPath = e.Item.ContainingFolderPath;
                         this.logger.Info($"入库媒体信息: JSON 恢复成功 item={itemPath}");
+                        
+                        // 恢复成功且 item 是音乐
+                        if (e.Item is not Audio)
+                        {
+                            _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority: RefreshPriority.Highest);
+                        }
 
                         if (string.IsNullOrEmpty(parentPath))
                         {

@@ -5,9 +5,9 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
+using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
-using MediaInfoKeeper.Store;
 
 namespace MediaInfoKeeper.Patch
 {
@@ -696,6 +696,10 @@ namespace MediaInfoKeeper.Patch
                     {
                         await Task.Delay(3000).ConfigureAwait(false);
                         Plugin.MediaSourceInfoStore?.OverWriteToFile(item);
+                        if (item is Audio)
+                        {
+                            Plugin.EmbeddedInfoStore?.OverWriteToFile(item);
+                        }
                     });
                     return;
                 }

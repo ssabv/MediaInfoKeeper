@@ -137,7 +137,9 @@ namespace MediaInfoKeeper.Services
                 ReplaceAllMetadata = true,
                 ImageRefreshMode = MetadataRefreshMode.FullRefresh,
                 ReplaceAllImages = true,
-                EnableThumbnailImageExtraction = Plugin.Instance?.Options?.MetaData?.EnableImageCapture ?? true,
+                EnableThumbnailImageExtraction =
+                    (Plugin.Instance?.Options?.MetaData?.EnableImageCapture ?? true) ||
+                    (Plugin.Instance?.Options?.MetaData?.EnableEmbeddedImages ?? true),
                 EnableSubtitleDownloading = false
             };
         }

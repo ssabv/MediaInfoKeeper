@@ -246,6 +246,15 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "EmbeddedImages",
+                Initialize = options => EmbeddedImages.Initialize(logger, options.MetaData.EnableEmbeddedImages),
+                Configure = options => EmbeddedImages.Configure(IsPluginEnabled(options) && options.MetaData.EnableEmbeddedImages),
+                IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableEmbeddedImages,
+                IsReady = () => EmbeddedImages.IsReady
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "ItemImageClearGuard",
                 Initialize = _ => ImageClearGuard.Initialize(logger, true),
                 Configure = options => ImageClearGuard.Configure(IsPluginEnabled(options)),

@@ -29,9 +29,13 @@ namespace MediaInfoKeeper.Options
 
         public override string EditorDescription => string.Empty;
 
-        [DisplayName("允许提取 Strm 封面")]
-        [Description("为 strm 音视频启用封面/缩略图提取，ImageCapture。")]
+        [DisplayName("允许 Strm 视频截图")]
+        [Description("让 Emby 能为 Strm 使用 Image Capture 刮削器，并在截图提取期间临时放行 ffprocess。")]
         public bool EnableImageCapture { get; set; } = true;
+
+        [DisplayName("允许 Strm 音频内嵌封面")]
+        [Description("让 Emby 能为 Strm 使用 Embedded Images 刮削器，并在内嵌封面提取期间临时放行 ffprocess。")]
+        public bool EnableEmbeddedImages { get; set; } = true;
         
         [DisplayName("刷新元数据并发数")]
         [Description("设置插件刷新元数据任务的最大并发数，修改后重启生效，默认 3。")]
@@ -187,6 +191,7 @@ namespace MediaInfoKeeper.Options
 
             AddGroup("MetaData", "Emby 元数据刷新时，插件会监听元数据刷新过程，阻止媒体信息丢失。",
                 nameof(EnableImageCapture),
+                nameof(EnableEmbeddedImages),
                 nameof(BlockNonFallbackLanguage),
                 nameof(MaxConcurrentCount)
                 );
