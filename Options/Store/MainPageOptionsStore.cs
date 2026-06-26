@@ -19,6 +19,7 @@ namespace MediaInfoKeeper.Options.Store
             var options = this.pluginOptionsStore.GetOptionsForUi();
             var mainPage = options.MainPage ?? new MainPageOptions();
             mainPage.ScheduledTasksEditor ??= new MainPageOptions.ScheduledTaskEditorOptions();
+            mainPage.ShowRefreshQueueStatus = options.Enhance?.TakeOverRefreshQueue ?? true;
             mainPage.RefreshQueueStatus = BuildRefreshQueueStatus();
             return mainPage;
         }

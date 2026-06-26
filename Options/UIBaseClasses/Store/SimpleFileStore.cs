@@ -23,6 +23,7 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store
             "IsNewItem",
             "ScheduledTaskEntries",
             "RefreshQueueStatus",
+            "ShowRefreshQueueStatus",
             "LibraryList",
             "SubsequentMarkerModeList",
             "SearchItemTypeList",

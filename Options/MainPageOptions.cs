@@ -386,8 +386,12 @@ namespace MediaInfoKeeper.Options
 
         public GenericItemList ScheduledTaskEntries { get; set; } = new GenericItemList();
 
+        [VisibleCondition(nameof(ShowRefreshQueueStatus), SimpleCondition.IsTrue)]
         [DisplayName("刷新队列")]
         public StatusItem RefreshQueueStatus { get; set; } = new StatusItem("刷新队列", "元数据刷新：0 / 0  · 0 等待\n媒体信息提取：0 / 0  · 0 等待", ItemStatus.Succeeded);
+
+        [Browsable(false)]
+        public bool ShowRefreshQueueStatus { get; set; } = true;
 
         public LabelItem UpdatePluginProjectUrl { get; set; } = new LabelItem("https://github.com/honue/MediaInfoKeeper")
         {
