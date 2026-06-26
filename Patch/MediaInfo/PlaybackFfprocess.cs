@@ -222,7 +222,7 @@ namespace MediaInfoKeeper.Patch
             {
                 ItemInternalId = itemInternalId,
                 ItemPath = item?.Path ?? item?.FileName,
-                AllowFfprocess = true
+                AllowFfProcess = true
             };
         }
 

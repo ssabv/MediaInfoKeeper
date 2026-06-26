@@ -49,6 +49,10 @@ namespace MediaInfoKeeper.Options
             [Description("如果在媒体库选项中启用此功能，将删除现有视频预览缩略图并生成新的缩略图。")]
             public bool ReplaceExistingVideoPreviewThumbnails { get; set; } = true;
 
+            [DisplayName("允许使用 ffprocess")]
+            [Description("Strm 需要截图或提取内嵌信息时，允许执行 ffprocess。")]
+            public bool AllowFfProcess { get; set; } = false;
+
             [Browsable(false)]
             public IEnumerable<EditorSelectOption> LibraryList { get; set; }
 
@@ -57,6 +61,87 @@ namespace MediaInfoKeeper.Options
             [EditMultilSelect]
             [SelectItemsSource(nameof(LibraryList))]
             public string RefreshRecentMetadataLibraries { get; set; } = string.Empty;
+
+            public override IEditObjectContainer CreateEditContainer()
+            {
+                var container = (EditObjectContainer)base.CreateEditContainer();
+                var root = container.EditorRoot;
+                if (root?.EditorItems == null || root.EditorItems.Length == 0)
+                {
+                    return container;
+                }
+
+                var itemLookup = new Dictionary<string, EditorBase>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in root.EditorItems)
+                {
+                    var key = item.Name ?? item.Id;
+                    if (!string.IsNullOrEmpty(key) && !itemLookup.ContainsKey(key))
+                    {
+                        itemLookup.Add(key, item);
+                    }
+                }
+
+                var groupedItems = new List<EditorBase>();
+                var groupIndex = 0;
+
+                void AddGroup(string title, string description, params string[] propertyNames)
+                {
+                    var items = new List<EditorBase>();
+                    foreach (var propertyName in propertyNames)
+                    {
+                        if (itemLookup.TryGetValue(propertyName, out var item))
+                        {
+                            items.Add(item);
+                            itemLookup.Remove(propertyName);
+                        }
+                    }
+
+                    if (items.Count == 0)
+                    {
+                        return;
+                    }
+
+                    groupIndex++;
+                    groupedItems.Add(new EditorGroup(title, items.ToArray(), $"group{groupIndex}", root.Id, null)
+                    {
+                        Description = description
+                    });
+                }
+
+                AddGroup("刷新范围", string.Empty,
+                    nameof(RefreshRecentMetadataDays),
+                    nameof(RefreshRecentMetadataLibraries));
+
+                AddGroup("刷新参数", string.Empty,
+                    nameof(RefreshMetadataMode),
+                    nameof(ReplaceExistingImages),
+                    nameof(ReplaceExistingVideoPreviewThumbnails),
+                    nameof(AllowFfProcess));
+
+                var remaining = new List<EditorBase>();
+                foreach (var item in root.EditorItems)
+                {
+                    var key = item.Name ?? item.Id;
+                    if (!string.IsNullOrEmpty(key) && itemLookup.ContainsKey(key))
+                    {
+                        remaining.Add(item);
+                        itemLookup.Remove(key);
+                    }
+                }
+
+                if (remaining.Count > 0)
+                {
+                    groupIndex++;
+                    groupedItems.Add(new EditorGroup("其他", remaining.ToArray(), $"group{groupIndex}", root.Id, null));
+                }
+
+                if (groupedItems.Count > 0)
+                {
+                    root.EditorItems = groupedItems.ToArray();
+                }
+
+                return container;
+            }
         }
 
         public class ScanRecentIntroTaskEditorOptions : EditableOptionsBase

@@ -55,6 +55,7 @@ namespace MediaInfoKeeper.Options.Store
             CopyValue(mainPage, refreshRecentMetadata, "RefreshMetadataMode", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.RefreshMetadataMode));
             CopyValue(mainPage, refreshRecentMetadata, "ReplaceExistingImages", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.ReplaceExistingImages));
             CopyValue(mainPage, refreshRecentMetadata, "ReplaceExistingVideoPreviewThumbnails", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.ReplaceExistingVideoPreviewThumbnails));
+            CopyValue(mainPage, refreshRecentMetadata, "AllowFfProcess", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.AllowFfProcess));
 
             var scanRecentIntro = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanRecentIntro));
             CopyInt(mainPage, scanRecentIntro, "ScanRecentIntroLimit", nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLimit));
@@ -120,6 +121,7 @@ namespace MediaInfoKeeper.Options.Store
                     "RefreshMetadataMode",
                     "ReplaceExistingImages",
                     "ReplaceExistingVideoPreviewThumbnails",
+                    "AllowFfProcess",
                     "ScanRecentIntroLimit",
                     "ScanRecentIntroLibraries",
                     "SubmitTheIntroDbMarkersLimit",

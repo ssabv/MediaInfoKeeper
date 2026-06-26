@@ -222,10 +222,10 @@ namespace MediaInfoKeeper.Patch
             var isShortcut = LibraryService.IsFileShortcut(itemPath);
             var isMediaFileItem = item is Video || item is Audio;
 
-            var allowFfprocess = isMediaFileItem && !string.IsNullOrWhiteSpace(itemPath) && !isShortcut;
-            if (!allowFfprocess && FfProcessGuard.HasExplicitAllowance())
+            var allowFfProcess = isMediaFileItem && !string.IsNullOrWhiteSpace(itemPath) && !isShortcut;
+            if (!allowFfProcess && FfProcessGuard.HasExplicitAllowance())
             {
-                allowFfprocess = true;
+                allowFfProcess = true;
             }
 
             return FfProcessGuard.BeginAllow(new FfProcessGuard.AllowanceContext
@@ -233,7 +233,7 @@ namespace MediaInfoKeeper.Patch
                 ItemInternalId = item.InternalId,
                 ItemPath = itemPath,
                 IsShortcut = isShortcut,
-                AllowFfprocess = allowFfprocess
+                AllowFfProcess = allowFfProcess
             });
         }
 

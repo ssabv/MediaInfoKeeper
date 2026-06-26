@@ -616,7 +616,7 @@ namespace MediaInfoKeeper
                 if (e.Item is not Audio)
                 {
                     // 视频，异步刷新一次元数据，让 Emby 先刮削，音乐提取内嵌封面需要媒体流，要等媒体信息先提取。
-                    _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority:RefreshPriority.Highest);
+                    _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority:RefreshPriority.Highest, allowFfProcess:true);
                 }
                 
                 if (!LibraryService.IsItemInCatchupLibraryScope(e.Item))
@@ -672,7 +672,7 @@ namespace MediaInfoKeeper
                                     // 提取成功且 item 是音乐
                                     else if (e.Item is Audio)
                                     {
-                                        _ = MetaDataRunner.RefreshMetaDataAsync(itemId, priority: RefreshPriority.Highest);
+                                        _ = MetaDataRunner.RefreshMetaDataAsync(itemId, priority: RefreshPriority.Highest, allowFfProcess:true);
                                     }
                                 }
                                 catch (Exception extractEx)
@@ -694,7 +694,7 @@ namespace MediaInfoKeeper
                         // 恢复成功且 item 是音乐
                         if (e.Item is not Audio)
                         {
-                            _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority: RefreshPriority.Highest);
+                            _ = MetaDataRunner.RefreshMetaDataAsync(e.Item.InternalId, priority: RefreshPriority.Highest, allowFfProcess:true);
                         }
 
                         if (string.IsNullOrEmpty(parentPath))

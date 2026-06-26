@@ -58,9 +58,10 @@ namespace MediaInfoKeeper.ScheduledTask
             var replaceMetadata = ShouldReplaceMetadata();
             var replaceImages = ShouldReplaceImages();
             var replaceThumbnails = ShouldReplaceThumbnails();
+            var allowFfProcess = ShouldAllowFfProcess();
             var metadataRefreshTargets = CollectMetadataRefreshItemIds(items);
             var totalWork = total + metadataRefreshTargets.Count;
-            this.logger.Info($"计划任务条目数{total}，元数据覆盖{replaceMetadata}，图片覆盖{replaceImages}，视频缩略图覆盖{replaceThumbnails}");
+            this.logger.Info($"计划任务条目数{total}，元数据覆盖{replaceMetadata}，图片覆盖{replaceImages}，视频缩略图覆盖{replaceThumbnails}，允许 ffprocess{allowFfProcess}");
 
             var submitted = 0;
             foreach (var item in items)
@@ -72,7 +73,7 @@ namespace MediaInfoKeeper.ScheduledTask
                 }
 
                 var options = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
-                _ = MetaDataRunner.RefreshMetaDataAsync(item.InternalId, options, CancellationToken.None, priority:RefreshPriority.High);
+                _ = MetaDataRunner.RefreshMetaDataAsync(item.InternalId, options, CancellationToken.None, priority:RefreshPriority.High, allowFfProcess: allowFfProcess);
                 ReportProgress(totalWork, progress, ++submitted);
             }
 
@@ -90,7 +91,7 @@ namespace MediaInfoKeeper.ScheduledTask
                 
                 var roleOptions = BuildRefreshOptions(replaceMetadata: true, replaceImages: false, replaceThumbnails: false);
                 roleOptions.Recursive = false;
-                _ = MetaDataRunner.RefreshMetaDataAsync(target.ItemId, roleOptions, CancellationToken.None, priority:RefreshPriority.High);
+                _ = MetaDataRunner.RefreshMetaDataAsync(target.ItemId, roleOptions, CancellationToken.None, priority:RefreshPriority.High, allowFfProcess: allowFfProcess);
                 ReportProgress(totalWork, progress, ++submitted);
             }
 
@@ -217,6 +218,11 @@ namespace MediaInfoKeeper.ScheduledTask
         private bool ShouldReplaceThumbnails()
         {
             return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.ReplaceExistingVideoPreviewThumbnails;
+        }
+
+        private bool ShouldAllowFfProcess()
+        {
+            return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.AllowFfProcess;
         }
     }
 }

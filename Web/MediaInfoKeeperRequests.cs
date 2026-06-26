@@ -26,6 +26,13 @@ namespace MediaInfoKeeper.Web
         public string Web { get; set; }
     }
 
+    [Route("/{Web}/modules/refreshdialog/refreshdialog.js", "GET", IsHidden = true)]
+    [Unauthenticated]
+    public class RefreshDialogRequest
+    {
+        public string Web { get; set; }
+    }
+
     [Route("/api/danmu/{ItemId}/raw", "GET")]
     [Unauthenticated]
     public class DanmuRawRequest : IReturnVoid

@@ -9,6 +9,8 @@ namespace MediaInfoKeeper.Web
     {
         public static string ModifiedShortcutsString { get; private set; }
 
+        public static string ModifiedRefreshDialogString { get; private set; }
+
         public static MemoryStream MediaInfoKeeperJs { get; private set; }
 
         public static MemoryStream EdeJs { get; private set; }
@@ -21,6 +23,7 @@ namespace MediaInfoKeeper.Web
                 MediaInfoKeeperJs = GetResourceStream("mediainfokeeper.js");
                 EdeJs = GetResourceStream("ede.js");
                 BuildShortcutBootstrap(configurationManager);
+                BuildRefreshDialogPatch(configurationManager);
             }
             catch (Exception e)
             {
@@ -91,6 +94,39 @@ namespace MediaInfoKeeper.Web
 
             ModifiedShortcutsString = File.ReadAllText(Path.Combine(dashboardSourcePath, "modules", "shortcuts.js")) +
                                       bootstrapScript;
+        }
+
+        private static void BuildRefreshDialogPatch(IServerConfigurationManager configurationManager)
+        {
+            var dashboardSourcePath = configurationManager.Configuration.DashboardSourcePath ??
+                                      Path.Combine(configurationManager.ApplicationPaths.ApplicationResourcesPath,
+                                          "dashboard-ui");
+
+            var refreshDialogPath = Path.Combine(dashboardSourcePath, "modules", "refreshdialog", "refreshdialog.js");
+            if (!File.Exists(refreshDialogPath))
+            {
+                Plugin.Instance.Logger.Warn("刷新元数据弹窗注入已跳过：未找到源文件 {0}", refreshDialogPath);
+                ModifiedRefreshDialogString = string.Empty;
+                return;
+            }
+
+            var source = File.ReadAllText(refreshDialogPath);
+            var patched = source;
+
+            patched = patched.Replace(
+                "replaceThumbnailImages=dlg.querySelector(\".chkReplaceThumbnailImages\").checked,options=options.items;return _connectionmanager.default.getApiClient(options[0]).refreshItems(options,{Recursive:!0,ImageRefreshMode:mode,MetadataRefreshMode:mode,ReplaceAllImages:replaceAllImages,ReplaceThumbnailImages:replaceThumbnailImages,ReplaceAllMetadata:replaceAllMetadata})",
+                "replaceThumbnailImages=dlg.querySelector(\".chkReplaceThumbnailImages\").checked,allowFfProcess=dlg.querySelector(\".chkAllowFfProcess\").checked,options=options.items;return _connectionmanager.default.getApiClient(options[0]).refreshItems(options,{Recursive:!0,ImageRefreshMode:mode,MetadataRefreshMode:mode,ReplaceAllImages:replaceAllImages,ReplaceThumbnailImages:replaceThumbnailImages,ReplaceAllMetadata:replaceAllMetadata,AllowFfProcess:allowFfProcess})");
+
+            patched = patched.Replace(
+                "+\"</div>\"+\"<br />\"+'<div class=\"formDialogFooter\">'",
+                "+\"</div>\"+'<div class=\"toggleContainer fldAllowFfProcess\">'+\"<label>\"+'<input type=\"checkbox\" is=\"emby-toggle\" class=\"chkAllowFfProcess\" />'+'<span>允许使用 ffprocess</span>'+\"</label>\"+'<div class=\"toggleFieldDescription fieldDescription\">Strm 需要截图或提取内嵌信息时，允许执行 ffprocess。</div>'+\"</div>\"+\"<br />\"+'<div class=\"formDialogFooter\">'");
+
+            if (string.Equals(source, patched, StringComparison.Ordinal))
+            {
+                Plugin.Instance.Logger.Warn("刷新元数据弹窗注入已跳过：未找到预期注入锚点");
+            }
+
+            ModifiedRefreshDialogString = patched;
         }
     }
 }

@@ -30,11 +30,11 @@ namespace MediaInfoKeeper.Options
         public override string EditorDescription => string.Empty;
 
         [DisplayName("允许 Strm 视频截图")]
-        [Description("让 Emby 能为 Strm 使用 Image Capture 刮削器，并在截图提取期间临时放行 ffprocess。")]
+        [Description("让 Emby 能为 Strm 使用 Image Capture 刮削器。")]
         public bool EnableImageCapture { get; set; } = true;
 
         [DisplayName("允许 Strm 音频内嵌封面")]
-        [Description("让 Emby 能为 Strm 使用 Embedded Images 刮削器，并在内嵌封面提取期间临时放行 ffprocess。")]
+        [Description("让 Emby 能为 Strm 使用 Embedded Images 刮削器。")]
         public bool EnableEmbeddedImages { get; set; } = true;
         
         [DisplayName("刷新元数据并发数")]

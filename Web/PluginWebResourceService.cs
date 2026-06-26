@@ -72,6 +72,12 @@ namespace MediaInfoKeeper.Web
                 "application/x-javascript");
         }
 
+        public object Get(RefreshDialogRequest request)
+        {
+            return _resultFactory.GetResult(PluginWebResourceLoader.ModifiedRefreshDialogString.AsSpan(),
+                "application/x-javascript");
+        }
+
         public object Get(DanmuRawRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.ItemId))

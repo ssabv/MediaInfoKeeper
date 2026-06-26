@@ -21,8 +21,8 @@ namespace MediaInfoKeeper.Patch
             public long ItemInternalId { get; set; }
             public string ItemPath { get; set; }
             public bool IsShortcut { get; set; }
-            public bool AllowFfprocess { get; set; }
-            public bool WasFfprocessCalled { get; set; }
+            public bool AllowFfProcess { get; set; }
+            public bool WasFfProcessCalled { get; set; }
         }
 
         public sealed class AllowanceHandle
@@ -198,9 +198,9 @@ namespace MediaInfoKeeper.Patch
                 logger?.Debug($"允许 {displayTarget}");
                 if ((isFfprobe || isFfmpeg) && context != null)
                 {
-                    context.WasFfprocessCalled = true;
+                    context.WasFfProcessCalled = true;
                 }
-                __state = isFfprobe && context?.ItemInternalId > 0 && context.AllowFfprocess;
+                __state = isFfprobe && context?.ItemInternalId > 0 && context.AllowFfProcess;
                 __3 = Math.Max(__3, 60000);
                 return true;
             }
@@ -237,9 +237,9 @@ namespace MediaInfoKeeper.Patch
                 logger?.Debug($"允许 {displayTarget}");
                 if ((isFfprobe || isFfmpeg) && context != null)
                 {
-                    context.WasFfprocessCalled = true;
+                    context.WasFfProcessCalled = true;
                 }
-                __state = isFfprobe && context?.ItemInternalId > 0 && context.AllowFfprocess;
+                __state = isFfprobe && context?.ItemInternalId > 0 && context.AllowFfProcess;
                 if (__3 < TimeSpan.FromSeconds(60))
                 {
                     __3 = TimeSpan.FromSeconds(60);
@@ -586,7 +586,7 @@ namespace MediaInfoKeeper.Patch
             var scope = CurrentScope.Value;
             while (scope != null)
             {
-                if (scope.Handle?.Context == null || scope.Handle.Context.AllowFfprocess)
+                if (scope.Handle?.Context == null || scope.Handle.Context.AllowFfProcess)
                 {
                     return scope;
                 }
@@ -733,7 +733,7 @@ namespace MediaInfoKeeper.Patch
             while (scope != null)
             {
                 var context = scope.Handle?.Context;
-                if (context?.ItemInternalId > 0 && context.AllowFfprocess)
+                if (context?.ItemInternalId > 0 && context.AllowFfProcess)
                 {
                     return scope;
                 }

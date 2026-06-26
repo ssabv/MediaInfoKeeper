@@ -160,6 +160,17 @@ namespace MediaInfoKeeper.Patch
 
             registrations.Add(new PatchRegistration
             {
+                Name = "MetadataRefreshAllowFfProcess",
+                Initialize = _ => MetadataRefreshAllowFfProcess.Initialize(logger, true),
+                Configure = options => MetadataRefreshAllowFfProcess.Configure(
+                    IsPluginEnabled(options) && options.Enhance.TakeOverRefreshQueue),
+                IsEnabled = options => IsPluginEnabled(options) && options.Enhance.TakeOverRefreshQueue,
+                IsReady = () => MetadataRefreshAllowFfProcess.IsReady,
+                Notes = () => "read AllowFfProcess from metadata refresh request"
+            });
+
+            registrations.Add(new PatchRegistration
+            {
                 Name = "FFProbeHasChanged",
                 Initialize = _ => FFProbeHasChanged.Initialize(logger, true),
                 Configure = options => FFProbeHasChanged.Configure(IsPluginEnabled(options)),

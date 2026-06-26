@@ -174,8 +174,7 @@ namespace MediaInfoKeeper.Patch
                 prefix: new HarmonyMethod(typeof(ImageCapture), nameof(SupportsImageCapturePrefix)),
                 postfix: new HarmonyMethod(typeof(ImageCapture), nameof(SupportsImageCapturePostfix)));
             harmony.Patch(getImage,
-                prefix: new HarmonyMethod(typeof(ImageCapture), nameof(GetImagePrefix)),
-                postfix: new HarmonyMethod(typeof(ImageCapture), nameof(GetImagePostfix)));
+                prefix: new HarmonyMethod(typeof(ImageCapture), nameof(GetImagePrefix)));
             harmony.Patch(supportsThumbnailsGetter,
                 prefix: new HarmonyMethod(typeof(ImageCapture), nameof(SupportsThumbnailsGetterPrefix)),
                 postfix: new HarmonyMethod(typeof(ImageCapture), nameof(SupportsThumbnailsGetterPostfix)));
@@ -249,10 +248,8 @@ namespace MediaInfoKeeper.Patch
         }
 
         [HarmonyPrefix]
-        private static bool GetImagePrefix(ref BaseMetadataResult itemResult, out FfProcessGuard.AllowanceHandle __state)
+        private static bool GetImagePrefix(ref BaseMetadataResult itemResult)
         {
-            __state = null;
-
             var item = Traverse.Create(itemResult).Property("Item").GetValue<BaseItem>();
             var itemOptions = item == null ? null : Plugin.LibraryManager?.GetLibraryOptions(item);
             var itemHasMediaInfo = item != null && Plugin.MediaInfoService?.HasMediaInfo(item) == true;
@@ -260,17 +257,6 @@ namespace MediaInfoKeeper.Patch
             if (item != null && !itemHasMediaInfo)
             {
                 Plugin.MediaSourceInfoStore?.ApplyToItem(item);
-            }
-
-            if (item != null && item.IsShortcut)
-            {
-                __state = FfProcessGuard.BeginAllow(new FfProcessGuard.AllowanceContext
-                {
-                    ItemInternalId = item.InternalId,
-                    ItemPath = item.Path ?? item.FileName,
-                    IsShortcut = true,
-                    AllowFfprocess = true
-                });
             }
 
             var streams = itemResult?.MediaStreams;
@@ -305,37 +291,6 @@ namespace MediaInfoKeeper.Patch
                 .ToArray();
 
             return true;
-        }
-
-        [HarmonyPostfix]
-        private static void GetImagePostfix(ref Task<DynamicImageResponse> __result, FfProcessGuard.AllowanceHandle __state)
-        {
-            if (__state == null)
-            {
-                return;
-            }
-
-            if (__result == null)
-            {
-                FfProcessGuard.EndAllow(__state);
-                return;
-            }
-
-            __result = AwaitGetImageTask(__result, __state);
-        }
-
-        private static async Task<DynamicImageResponse> AwaitGetImageTask(
-            Task<DynamicImageResponse> task,
-            FfProcessGuard.AllowanceHandle allowance)
-        {
-            try
-            {
-                return await task.ConfigureAwait(false);
-            }
-            finally
-            {
-                FfProcessGuard.EndAllow(allowance);
-            }
         }
 
         [HarmonyPrefix]

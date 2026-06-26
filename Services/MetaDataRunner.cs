@@ -42,6 +42,8 @@ namespace MediaInfoKeeper.Services
 
             public CancellationToken CancellationToken { get; set; }
 
+            public bool AllowFfProcess { get; set; }
+
             public TaskCompletionSource<bool> Completion { get; set; }
 
             public bool Started { get; set; }
@@ -103,14 +105,15 @@ namespace MediaInfoKeeper.Services
             MetadataRefreshOptions options,
             CancellationToken cancellationToken = default,
             RefreshPriority priority = RefreshPriority.Normal,
-            bool replaceQueued = false)
+            bool replaceQueued = false,
+            bool allowFfProcess = false)
         {
             if (internalId <= 0 || options == null)
             {
                 return;
             }
 
-            var refreshTask = QueueRefresh(internalId, options, cancellationToken, priority, replaceQueued);
+            var refreshTask = QueueRefresh(internalId, options, cancellationToken, priority, replaceQueued, allowFfProcess);
             await refreshTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -122,9 +125,10 @@ namespace MediaInfoKeeper.Services
         public static async Task RefreshMetaDataAsync(
             long internalId,
             CancellationToken cancellationToken = default,
-            RefreshPriority priority = RefreshPriority.Normal)
+            RefreshPriority priority = RefreshPriority.Normal,
+            bool allowFfProcess = false)
         {
-            await RefreshMetaDataAsync(internalId, GetRefreshOptions(), cancellationToken, priority)
+            await RefreshMetaDataAsync(internalId, GetRefreshOptions(), cancellationToken, priority, allowFfProcess: allowFfProcess)
                 .ConfigureAwait(false);
         }
 
@@ -149,12 +153,18 @@ namespace MediaInfoKeeper.Services
             MetadataRefreshOptions options,
             CancellationToken cancellationToken,
             RefreshPriority priority = RefreshPriority.Normal,
-            bool replaceQueued = false)
+            bool replaceQueued = false,
+            bool allowFfProcess = false)
         {
             lock (QueueSync)
             {
                 if (InFlightRefreshes.TryGetValue(internalId, out var existing))
                 {
+                    if (!existing.Started && !existing.Disabled && allowFfProcess)
+                    {
+                        existing.AllowFfProcess = true;
+                    }
+
                     if (!existing.Started &&
                         !existing.Disabled &&
                         (replaceQueued || priority < existing.Priority))
@@ -169,6 +179,7 @@ namespace MediaInfoKeeper.Services
                             Options = options,
                             Priority = priority,
                             CancellationToken = cancellationToken,
+                            AllowFfProcess = allowFfProcess,
                             Completion = existing.Completion
                         };
 
@@ -188,6 +199,7 @@ namespace MediaInfoKeeper.Services
                     Options = options,
                     Priority = priority,
                     CancellationToken = cancellationToken,
+                    AllowFfProcess = allowFfProcess,
                     Completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
                 };
 
@@ -298,7 +310,7 @@ namespace MediaInfoKeeper.Services
                     }
                     else
                     {
-                        await RefreshItemAsync(item, request.Options, request.CancellationToken)
+                        await RefreshItemAsync(item, request.Options, request.CancellationToken, request.AllowFfProcess)
                             .ConfigureAwait(false);
                     }
                 }
@@ -337,7 +349,8 @@ namespace MediaInfoKeeper.Services
         private static async Task RefreshItemAsync(
             BaseItem item,
             MetadataRefreshOptions options,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool allowFfProcess)
         {
             if (item is Video || item is Audio)
             {
@@ -345,7 +358,7 @@ namespace MediaInfoKeeper.Services
             }
 
             await Plugin.MetaDataService
-                .RefreshMetaDataAsync(item, options, cancellationToken)
+                .RefreshMetaDataAsync(item, options, cancellationToken, allowFfProcess)
                 .ConfigureAwait(false);
         }
 
@@ -355,7 +368,7 @@ namespace MediaInfoKeeper.Services
             {
                 Recursive = false
             };
-            await RefreshItemAsync(folder, parentOptions, request.CancellationToken)
+            await RefreshItemAsync(folder, parentOptions, request.CancellationToken, request.AllowFfProcess)
                 .ConfigureAwait(false);
 
             foreach (var child in folder.GetRecursiveChildren())
@@ -375,7 +388,8 @@ namespace MediaInfoKeeper.Services
                     child.InternalId,
                     childOptions,
                     CancellationToken.None,
-                    request.Priority);
+                    request.Priority,
+                    allowFfProcess: request.AllowFfProcess);
             }
         }
 

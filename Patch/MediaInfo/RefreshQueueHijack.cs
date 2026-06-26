@@ -170,7 +170,12 @@ namespace MediaInfoKeeper.Patch
             }
             else
             {
-                _ = MetaDataRunner.RefreshMetaDataAsync(__0, __1, priority: __2, replaceQueued: __3);
+                _ = MetaDataRunner.RefreshMetaDataAsync(
+                    __0,
+                    __1,
+                    priority: __2,
+                    replaceQueued: __3,
+                    allowFfProcess: MetadataRefreshAllowFfProcess.HasCurrentAllowance);
             }
 
             return false;
