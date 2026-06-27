@@ -4,8 +4,8 @@
     <Description>MediaInfoKeeper Emby plugin</Description>
     <PackageTags>emby;plugin;pms;media;server;</PackageTags>
     <BaseOutputPath>Build\bin\</BaseOutputPath>
-    <AssemblyVersion>1.7.2.8</AssemblyVersion>
-    <FileVersion>1.7.2.8</FileVersion>
+    <AssemblyVersion>1.7.2.9</AssemblyVersion>
+    <FileVersion>1.7.2.9</FileVersion>
     <Version>1.7.2</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <TokenizerBundle Condition="'$(TokenizerBundle)' == ''">full</TokenizerBundle>
