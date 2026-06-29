@@ -53,6 +53,10 @@ namespace MediaInfoKeeper.Options
             [Description("Strm 需要截图或提取内嵌信息时，允许执行 ffprocess。")]
             public bool AllowFfProcess { get; set; } = false;
 
+            [DisplayName("跳过首播日期过旧的条目")]
+            [Description("任务仍先按入库时间筛选；开启后，如果条目有首播日期且早于入库时间窗口，就不刷新。没有首播日期的条目会继续刷新。")]
+            public bool EnablePremiereDateFilter { get; set; } = true;
+
             [Browsable(false)]
             public IEnumerable<EditorSelectOption> LibraryList { get; set; }
 
@@ -110,7 +114,8 @@ namespace MediaInfoKeeper.Options
 
                 AddGroup("刷新范围", string.Empty,
                     nameof(RefreshRecentMetadataDays),
-                    nameof(RefreshRecentMetadataLibraries));
+                    nameof(RefreshRecentMetadataLibraries),
+                    nameof(EnablePremiereDateFilter));
 
                 AddGroup("刷新参数", string.Empty,
                     nameof(RefreshMetadataMode),

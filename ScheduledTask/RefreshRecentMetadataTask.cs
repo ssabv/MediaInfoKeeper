@@ -124,11 +124,25 @@ namespace MediaInfoKeeper.ScheduledTask
                 ? ConfiguredDateTime.Now.AddDays(-days)
                 : (DateTime?)null;
 
-            return Plugin.LibraryService.FetchRecentScheduledTaskLibraryItems(
+            var items = Plugin.LibraryService.FetchRecentScheduledTaskLibraryItems(
                 cutoff,
                 taskScope,
                 true,
                 includeAudio: true);
+
+            if (!taskOptions.EnablePremiereDateFilter || cutoff == null)
+            {
+                return items;
+            }
+
+            var itemsWithoutPremiereDate = items.Count(i => !i.PremiereDate.HasValue);
+            var filteredItems = items
+                .Where(i => !i.PremiereDate.HasValue || i.PremiereDate.Value.LocalDateTime >= cutoff.Value)
+                .ToList();
+            var skippedByPremiereDate = items.Count - filteredItems.Count;
+
+            this.logger.Info($"刷新元数据计划任务按首播日期过滤：入库时间命中 {items.Count} 个，放行 {filteredItems.Count} 个，其中缺少首播日期 {itemsWithoutPremiereDate} 个，跳过首播日期过旧 {skippedByPremiereDate} 个");
+            return filteredItems;
         }
 
         private MetadataRefreshOptions BuildRefreshOptions(bool replaceMetadata, bool replaceImages, bool replaceThumbnails)
