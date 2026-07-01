@@ -60,7 +60,8 @@ bash Scripts/decompile Emby.Providers.dll
 4. Build `MethodSignatureProfile` with exact `BindingFlags`, `ParameterTypes`, and `ReturnType` when needed.
 5. If a prerequisite type is missing, log `PatchLog.InitFailed(...)` with a clear reason and stop that patch.
 6. Rely on existing `PatchLog.ResolveHit` and `PatchLog.ResolveFailed` for resolution outcomes.
-7. Verify with `dotnet build MediaInfoKeeper.sln`.
+7. Verify with `dotnet build MediaInfoKeeper.csproj -f net8.0 --no-restore`.
+8. Restart Emby with `bash Scripts/restart --no-build`.
 
 ## High-Value Decompiled Entry Points
 - External subtitle scanning usually starts from:

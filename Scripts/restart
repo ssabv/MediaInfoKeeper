@@ -12,6 +12,7 @@ TOKENIZER_RID="${TOKENIZER_RID:-linux-x64}"
 LOCAL_DLL="${LOCAL_DLL:-}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/emby/config/plugins}"
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/emby}"
+NO_BUILD="${NO_BUILD:-0}"
 
 print_usage() {
   cat <<EOF
@@ -23,9 +24,10 @@ Options:
   --remote <ssh-target>       SSH target. Default: ${REMOTE}
   --configuration <name>      Build configuration. Default: ${CONFIGURATION}
   --target-framework <tfm>    Target framework. Default: ${TARGET_FRAMEWORK}
-  --tokenizer-bundle <value>  TokenizerBundle MSBuild property. Default: ${TOKENIZER_BUNDLE}
-  --tokenizer-rid <rid>       TokenizerRid MSBuild property. Default: ${TOKENIZER_RID}
-  --local-dll <path>          DLL path to copy after build.
+  --tokenizer-bundle <value>  Kept for default DLL path compatibility. Default: ${TOKENIZER_BUNDLE}
+  --tokenizer-rid <rid>       Kept for default DLL path compatibility. Default: ${TOKENIZER_RID}
+  --local-dll <path>          Built DLL path to copy.
+  --no-build                  Skip local build and upload the existing DLL.
   --remote-dir <path>         Remote plugin directory. Default: ${REMOTE_DIR}
   --compose-dir <path>        Remote compose directory. Default: ${COMPOSE_DIR}
   -h, --help                  Show this help.
@@ -62,6 +64,10 @@ while [ "$#" -gt 0 ]; do
       LOCAL_DLL="${2:?missing value for --local-dll}"
       shift 2
       ;;
+    --no-build)
+      NO_BUILD=1
+      shift
+      ;;
     --remote-dir)
       REMOTE_DIR="${2:?missing value for --remote-dir}"
       shift 2
@@ -86,9 +92,12 @@ if [ -z "${LOCAL_DLL}" ]; then
   LOCAL_DLL="${PROJECT_DIR}/Build/bin/${CONFIGURATION}/${TARGET_FRAMEWORK}/MediaInfoKeeper.dll"
 fi
 
-dotnet build "${PROJECT_DIR}/MediaInfoKeeper.csproj" -c "${CONFIGURATION}" -f "${TARGET_FRAMEWORK}" \
-  /p:TokenizerBundle="${TOKENIZER_BUNDLE}" \
-  /p:TokenizerRid="${TOKENIZER_RID}"
+if [ "${NO_BUILD}" != "1" ]; then
+  dotnet build "${PROJECT_DIR}/MediaInfoKeeper.csproj" -c "${CONFIGURATION}" -f "${TARGET_FRAMEWORK}" \
+    --no-restore \
+    /p:TokenizerBundle="${TOKENIZER_BUNDLE}" \
+    /p:TokenizerRid="${TOKENIZER_RID}"
+fi
 
 if [ ! -f "${LOCAL_DLL}" ]; then
   echo "Error: built DLL not found: ${LOCAL_DLL}" >&2
