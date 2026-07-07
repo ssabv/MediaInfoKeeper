@@ -57,6 +57,7 @@ namespace MediaInfoKeeper.Options.Store
             CopyValue(mainPage, refreshRecentMetadata, "ReplaceExistingVideoPreviewThumbnails", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.ReplaceExistingVideoPreviewThumbnails));
             CopyValue(mainPage, refreshRecentMetadata, "AllowFfProcess", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.AllowFfProcess));
             CopyValue(mainPage, refreshRecentMetadata, "EnablePremiereDateFilter", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.EnablePremiereDateFilter));
+            CopyValue(mainPage, refreshRecentMetadata, "RefreshCompletedSeriesEpisodes", nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.RefreshCompletedSeriesEpisodes));
 
             var scanRecentIntro = GetOrCreateObject(scheduledTasksEditor, nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanRecentIntro));
             CopyInt(mainPage, scanRecentIntro, "ScanRecentIntroLimit", nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLimit));
@@ -124,6 +125,7 @@ namespace MediaInfoKeeper.Options.Store
                     "ReplaceExistingVideoPreviewThumbnails",
                     "AllowFfProcess",
                     "EnablePremiereDateFilter",
+                    "RefreshCompletedSeriesEpisodes",
                     "ScanRecentIntroLimit",
                     "ScanRecentIntroLibraries",
                     "SubmitTheIntroDbMarkersLimit",

@@ -57,6 +57,10 @@ namespace MediaInfoKeeper.Options
             [Description("任务仍先按入库时间筛选；开启后，如果条目有首播日期且早于入库时间窗口，就不刷新。没有首播日期的条目会继续刷新。")]
             public bool EnablePremiereDateFilter { get; set; } = true;
 
+            [DisplayName("完整刷新已完结剧集")]
+            [Description("最近入库命中剧集时，覆盖刷新剧集元数据；如果本次刷新后状态变为完结，再按本任务参数刷新该剧集下全部分集。")]
+            public bool RefreshCompletedSeriesEpisodes { get; set; } = true;
+
             [Browsable(false)]
             public IEnumerable<EditorSelectOption> LibraryList { get; set; }
 
@@ -115,7 +119,8 @@ namespace MediaInfoKeeper.Options
                 AddGroup("刷新范围", string.Empty,
                     nameof(RefreshRecentMetadataDays),
                     nameof(RefreshRecentMetadataLibraries),
-                    nameof(EnablePremiereDateFilter));
+                    nameof(EnablePremiereDateFilter),
+                    nameof(RefreshCompletedSeriesEpisodes));
 
                 AddGroup("刷新参数", string.Empty,
                     nameof(RefreshMetadataMode),

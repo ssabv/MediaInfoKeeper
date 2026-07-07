@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Tasks;
 using MediaInfoKeeper.Common;
@@ -42,7 +43,7 @@ namespace MediaInfoKeeper.ScheduledTask
 
         public string Category => Plugin.TaskCategoryName;
 
-        public Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
+        public async Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
         {
             this.logger.Info("最近条目刷新元数据计划任务开始");
 
@@ -52,16 +53,25 @@ namespace MediaInfoKeeper.ScheduledTask
             {
                 progress.Report(100.0);
                 this.logger.Info("计划任务完成，条目数 0");
-                return Task.CompletedTask;
+                return;
             }
 
             var replaceMetadata = ShouldReplaceMetadata();
             var replaceImages = ShouldReplaceImages();
             var replaceThumbnails = ShouldReplaceThumbnails();
             var allowFfProcess = ShouldAllowFfProcess();
-            var metadataRefreshTargets = CollectMetadataRefreshItemIds(items);
-            var totalWork = total + metadataRefreshTargets.Count;
-            this.logger.Info($"计划任务条目数{total}，元数据覆盖{replaceMetadata}，图片覆盖{replaceImages}，视频缩略图覆盖{replaceThumbnails}，允许 ffprocess{allowFfProcess}");
+            var metadataRefreshTargets = new List<RoleRefreshTarget>();
+            var completedSeriesTargets = new List<RoleRefreshTarget>();
+            if (Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.RefreshCompletedSeriesEpisodes)
+            {
+                completedSeriesTargets = CollectSeriesRefreshTargets(items);
+            }
+            else
+            {
+                metadataRefreshTargets = CollectMetadataRefreshItemIds(items);
+            }
+            var totalWork = total + metadataRefreshTargets.Count + completedSeriesTargets.Count;
+            this.logger.Info($"计划任务条目数{total}，元数据覆盖{replaceMetadata}，图片覆盖{replaceImages}，视频缩略图覆盖{replaceThumbnails}，允许 ffprocess{allowFfProcess}，完整刷新已完结剧集{completedSeriesTargets.Count > 0}");
 
             var submitted = 0;
             foreach (var item in items)
@@ -75,6 +85,63 @@ namespace MediaInfoKeeper.ScheduledTask
                 var options = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
                 _ = MetaDataRunner.RefreshMetaDataAsync(item.InternalId, options, CancellationToken.None, priority:RefreshPriority.High, allowFfProcess: allowFfProcess);
                 ReportProgress(totalWork, progress, ++submitted);
+            }
+
+            foreach (var target in completedSeriesTargets)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    this.logger.Info($"计划任务已取消完结剧集检查 itemid={target.ItemId}");
+                    break;
+                }
+
+                var seriesOptions = BuildRefreshOptions(replaceMetadata: true, replaceImages, replaceThumbnails);
+                seriesOptions.Recursive = false;
+                var previousStatus = (Plugin.LibraryManager?.GetItemById(target.ItemId) as Series)?.Status;
+
+                await MetaDataRunner.RefreshMetaDataAsync(
+                        target.ItemId,
+                        seriesOptions,
+                        cancellationToken,
+                        priority: RefreshPriority.High,
+                        replaceQueued: true,
+                        allowFfProcess: allowFfProcess)
+                    .ConfigureAwait(false);
+                ReportProgress(totalWork, progress, ++submitted);
+
+                if (!(Plugin.LibraryManager?.GetItemById(target.ItemId) is Series refreshedSeries))
+                {
+                    this.logger.Info($"计划任务跳过完结剧集展开：未找到 Series itemid={target.ItemId}");
+                    continue;
+                }
+
+                if (previousStatus == refreshedSeries.Status || refreshedSeries.Status != SeriesStatus.Ended)
+                {
+                    continue;
+                }
+
+                var episodes = Plugin.LibraryService?.FetchSeriesEpisodes(refreshedSeries) ?? Array.Empty<Episode>();
+                this.logger.Info($"已完结剧集：{FormatItemLabel(refreshedSeries.Name, refreshedSeries.ProductionYear)}，提交刷新分集 {episodes.Count} 个");
+                totalWork += episodes.Count;
+                ReportProgress(totalWork, progress, submitted);
+                foreach (var episode in episodes)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        this.logger.Info($"计划任务已取消完结剧集分集刷新 series={target.Name}");
+                        break;
+                    }
+
+                    var episodeOptions = BuildRefreshOptions(replaceMetadata, replaceImages, replaceThumbnails);
+                    episodeOptions.Recursive = false;
+                    _ = MetaDataRunner.RefreshMetaDataAsync(
+                        episode.InternalId,
+                        episodeOptions,
+                        CancellationToken.None,
+                        priority: RefreshPriority.High,
+                        allowFfProcess: allowFfProcess);
+                    ReportProgress(totalWork, progress, ++submitted);
+                }
             }
 
             if (metadataRefreshTargets.Count > 0)
@@ -95,9 +162,14 @@ namespace MediaInfoKeeper.ScheduledTask
                 ReportProgress(totalWork, progress, ++submitted);
             }
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                this.logger.Info("最近条目刷新元数据计划任务已取消");
+                return;
+            }
+
             progress.Report(100.0);
             this.logger.Info("最近条目刷新元数据计划任务已提交后台执行");
-            return Task.CompletedTask;
         }
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
@@ -188,6 +260,40 @@ namespace MediaInfoKeeper.ScheduledTask
                         ItemId = refreshItem.InternalId,
                         Name = refreshItem.Name,
                         ProductionYear = refreshItem.ProductionYear
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        private List<RoleRefreshTarget> CollectSeriesRefreshTargets(IEnumerable<BaseItem> items)
+        {
+            var result = new List<RoleRefreshTarget>();
+            var seen = new HashSet<long>();
+
+            foreach (var item in items)
+            {
+                var series = item switch
+                {
+                    Series currentSeries => currentSeries,
+                    Season season => season.Series,
+                    Episode episode => episode.Series,
+                    _ => null
+                };
+
+                if (series == null || series.InternalId <= 0)
+                {
+                    continue;
+                }
+
+                if (seen.Add(series.InternalId))
+                {
+                    result.Add(new RoleRefreshTarget
+                    {
+                        ItemId = series.InternalId,
+                        Name = series.Name,
+                        ProductionYear = series.ProductionYear
                     });
                 }
             }
