@@ -26,8 +26,8 @@
   <a href="https://github.com/honue/MediaInfoKeeper/wiki">
     <img src="https://img.shields.io/badge/Wiki-功能说明-blue?logo=github&amp;logoColor=white" />
   </a>
-  <a href="https://t.me/EmbyPatch">
-    <img src="https://img.shields.io/badge/Telegram群组-EmbyPatch-26A5E4?logo=telegram&amp;logoColor=white" />
+  <a href="https://t.me/EmbyPatch_Channel">
+    <img src="https://img.shields.io/badge/Telegram频道-EmbyPatch-26A5E4?logo=telegram&amp;logoColor=white" />
   </a>
 </p>
 <p align="center">
