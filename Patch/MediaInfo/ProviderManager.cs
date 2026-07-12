@@ -171,7 +171,7 @@ namespace MediaInfoKeeper.Patch
 
         private static void RefreshItemPrefix(BaseItem __0, MetadataRefreshOptions __1, out FfProcessGuard.AllowanceHandle __state)
         {
-            __state = BeginRefreshFfprocessAllowance(__0);
+            __state = BeginRefreshFfprocessAllowance(__0, __1);
         }
 
         private static void RefreshItemPostfix(BaseItem __0, ref Task __result, FfProcessGuard.AllowanceHandle __state)
@@ -181,7 +181,7 @@ namespace MediaInfoKeeper.Patch
 
         private static void RefreshItemByNameChildrenPrefix(MusicAlbum __0, MetadataRefreshOptions __1, out FfProcessGuard.AllowanceHandle __state)
         {
-            __state = BeginRefreshFfprocessAllowance(__0);
+            __state = BeginRefreshFfprocessAllowance(__0, __1);
         }
 
         private static void RefreshItemByNameChildrenPostfix(MusicAlbum __0, ref Task __result, FfProcessGuard.AllowanceHandle __state)
@@ -191,7 +191,7 @@ namespace MediaInfoKeeper.Patch
 
         private static void RefreshSingleItemPrefix(BaseItem __0, MetadataRefreshOptions __1, out FfProcessGuard.AllowanceHandle __state)
         {
-            __state = BeginRefreshFfprocessAllowance(__0);
+            __state = BeginRefreshFfprocessAllowance(__0, __1);
         }
 
         private static void RefreshSingleItemPostfix(BaseItem __0, ref object __result, FfProcessGuard.AllowanceHandle __state)
@@ -210,7 +210,7 @@ namespace MediaInfoKeeper.Patch
             FfProcessGuard.EndAllow(__state);
         }
 
-        private static FfProcessGuard.AllowanceHandle BeginRefreshFfprocessAllowance(BaseItem item)
+        private static FfProcessGuard.AllowanceHandle BeginRefreshFfprocessAllowance(BaseItem item, MetadataRefreshOptions options)
         {
             if (item == null)
             {
@@ -218,11 +218,17 @@ namespace MediaInfoKeeper.Patch
             }
 
             var itemPath = item.Path ?? item.FileName;
+            var allowFfProcess = FfProcessGuard.HasExplicitAllowance();
+            if (!allowFfProcess && item is Video && !item.IsShortcut && options?.DirectoryService != null)
+            {
+                allowFfProcess = Plugin.ExternalFiles?.HasExternalFilesChanged(item, options.DirectoryService, true) == true;
+            }
+
             return FfProcessGuard.BeginAllow(new FfProcessGuard.AllowanceContext
             {
                 ItemInternalId = item.InternalId,
                 ItemPath = itemPath,
-                AllowFfProcess = FfProcessGuard.HasExplicitAllowance()
+                AllowFfProcess = allowFfProcess
             });
         }
 
