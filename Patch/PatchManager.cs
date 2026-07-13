@@ -466,6 +466,18 @@ namespace MediaInfoKeeper.Patch {
             });
 
             registrations.Add(new PatchRegistration {
+                Name = "IntroMarkerCards",
+                Initialize = options => IntroMarkerCards.Initialize(
+                    logger,
+                    options.Enhance.EnableIntroMarkerCards),
+                Configure = options => IntroMarkerCards.Configure(
+                    IsPluginEnabled(options) && options.Enhance.EnableIntroMarkerCards),
+                IsEnabled = options => IsPluginEnabled(options) && options.Enhance.EnableIntroMarkerCards,
+                IsReady = () => IntroMarkerCards.IsReady,
+                Notes = () => "append intro, credits and danmu cards to PlaybackInfo"
+            });
+
+            registrations.Add(new PatchRegistration {
                 Name = "EpisodeBackdropFallback",
                 Initialize = options => EpisodeBackdropFallback.Initialize(
                     logger,

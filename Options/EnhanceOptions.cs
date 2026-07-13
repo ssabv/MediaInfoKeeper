@@ -171,6 +171,10 @@ namespace MediaInfoKeeper.Options {
         [Description("在播放信息接口中把多版本媒体源名称显示为分辨率、杜比视界 Profile 和总码率，例如 4K DV P7 - 82 Mbps。")]
         public bool EnablePlaybackMediaSourceName { get; set; } = false;
 
+        [DisplayName("详情媒体信息卡片")]
+        [Description("在详情页的媒体信息中显示片头、片尾和本地弹幕条数。")]
+        public bool EnableIntroMarkerCards { get; set; } = true;
+
         [DisplayName("禁止自动合集")]
         [Description("阻止 Emby 自动创建 BoxSets 合集库，并在用户视图中过滤该入口。")]
         public bool NoBoxsetsAutoCreation { get; set; } = false;
@@ -302,6 +306,7 @@ namespace MediaInfoKeeper.Options {
                 nameof(EnableNfoMetadataEnhance),
                 nameof(EnableSeriesTotalEpisodeCount),
                 nameof(EnablePlaybackMediaSourceName),
+                nameof(EnableIntroMarkerCards),
                 nameof(NoBoxsetsAutoCreation),
                 nameof(EnforceLibraryOrder),
                 nameof(EnableLibrayProviderSettings));
