@@ -1,0 +1,50 @@
+# 编译输出
+Build/
+obj/
+Debug/
+Release/
+x64/
+x86/
+!Resources/Tokenizer/**/x64/
+!Resources/Tokenizer/**/x64/**
+*.exe
+*.lib
+*.obj
+*.ilk
+*.exp
+*.manifest
+*.res
+*.aps
+
+# 临时文件
+*.tmp
+*.log
+*.tlog
+*.lastbuildstate
+*.cache
+*.cachefile
+
+# 其他
+.vs/
+.vscode/
+.idea/
+*.sln.DotSettings.user
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# 特定于你的项目的文件
+# 例如：
+*.pdb
+*.idb
+*.ipch
+
+# 本地 Emby 签名快照
+Docs/emby_*/
+Docs/**/*_methods.txt
+
+# 不排除

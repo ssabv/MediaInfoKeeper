@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAS_HOST="${NAS_HOST:-root@192.168.33.100}"
+REMOTE_DIR="${REMOTE_METHODS_DIR:-/strm/mediainfo}"
+EMBY_DOCS_DIR="${EMBY_DOCS_DIR:-}"
+EMBY_VERSION="${EMBY_VERSION:-}"
+OVERWRITE=0
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_DIR="${LOCAL_DIR:-${HOME}/Documents/Emby/dlls}"
+TARGET_DIR="${TARGET_DIR:-}"
+
+print_usage() {
+  cat <<EOF
+Usage:
+  bash Scripts/pull-methods
+  bash Scripts/pull-methods --overwrite
+  bash Scripts/pull-methods --emby-version 4.9.5.0
+  bash Scripts/pull-methods --emby-docs-dir emby_4.9.5.0
+  bash Scripts/pull-methods --local-dir ~/Documents/Emby/dlls --emby-version 4.9.5.0
+
+Options:
+  --host <ssh-target>         SSH target. Default: ${NAS_HOST}
+  --remote-dir <path>         Remote directory containing emby_*/*_methods.txt snapshots.
+                               Default: ${REMOTE_DIR}
+  --local-dir <path>          Local DLL root directory. Default: ${LOCAL_DIR}
+  --emby-version <version>    Local version folder. Default: derived from --emby-docs-dir or emby_4.9.5.0.
+  --emby-docs-dir <name>      Remote version folder. Default: emby_<emby-version>.
+  --target-dir <path>         Exact local target directory. Default: <local-dir>/<emby-version>
+  --all                       Pull all remote emby_* folders into <local-dir>/<version>.
+  --overwrite, -o             Overwrite existing local files.
+  -h, --help                  Show this help.
+EOF
+}
+
+is_version_string() {
+  local value="$1"
+  [[ "${value}" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]
+}
+
+version_from_docs_dir() {
+  local value="$1"
+
+  printf '%s\n' "${value#emby_}"
+}
+
+normalize_method_filename() {
+  local file_name="$1"
+  local stem="${file_name%_methods.txt}"
+
+  if [[ "${stem}" =~ ^(.+)_([0-9]+(\.[0-9]+){1,3})$ ]]; then
+    stem="${BASH_REMATCH[1]}"
+  fi
+
+  printf '%s_methods.txt\n' "${stem}"
+}
+
+normalize_method_filename_for_version() {
+  local file_name="$1"
+  local stem="${file_name%_methods.txt}"
+
+  if [[ "${stem}" =~ ^(.+)_([0-9]+(\.[0-9]+){1,3})$ ]]; then
+    stem="${BASH_REMATCH[1]}"
+  fi
+
+  printf '%s_methods.txt\n' "${stem}"
+}
+
+PULL_ALL=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    overwrite|--overwrite|-o)
+      OVERWRITE=1
+      shift
+      ;;
+    --host)
+      NAS_HOST="${2:?missing value for --host}"
+      shift 2
+      ;;
+    --remote-dir)
+      REMOTE_DIR="${2:?missing value for --remote-dir}"
+      shift 2
+      ;;
+    --local-dir)
+      LOCAL_DIR="${2:?missing value for --local-dir}"
+      shift 2
+      ;;
+    --emby-version)
+      EMBY_VERSION="${2:?missing value for --emby-version}"
+      shift 2
+      ;;
+    --emby-docs-dir)
+      EMBY_DOCS_DIR="${2:?missing value for --emby-docs-dir}"
+      shift 2
+      ;;
+    --target-dir)
+      TARGET_DIR="${2:?missing value for --target-dir}"
+      shift 2
+      ;;
+    --all)
+      PULL_ALL=1
+      shift
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown option: $1" >&2
+      print_usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "${EMBY_VERSION}" ] && [ -z "${EMBY_DOCS_DIR}" ]; then
+  EMBY_DOCS_DIR="emby_4.9.5.0"
+fi
+
+if [ -z "${EMBY_VERSION}" ]; then
+  EMBY_VERSION="$(version_from_docs_dir "${EMBY_DOCS_DIR}")"
+fi
+
+if ! is_version_string "${EMBY_VERSION}"; then
+  echo "Error: unable to derive Emby version from '${EMBY_DOCS_DIR}'. Use --emby-version." >&2
+  exit 1
+fi
+
+if [ -z "${EMBY_DOCS_DIR}" ]; then
+  EMBY_DOCS_DIR="emby_${EMBY_VERSION}"
+fi
+
+if [ -z "${TARGET_DIR}" ]; then
+  TARGET_DIR="${LOCAL_DIR}/${EMBY_VERSION}"
+fi
+
+mkdir -p "${TARGET_DIR}"
+
+tmp_file="$(mktemp)"
+trap 'rm -f "${tmp_file}"' EXIT INT TERM
+
+if [ "${PULL_ALL}" -eq 1 ]; then
+  ssh "${NAS_HOST}" "find '${REMOTE_DIR}' -mindepth 2 -maxdepth 2 -type f -path '${REMOTE_DIR}/emby_*/*_methods.txt' 2>/dev/null | sort" > "${tmp_file}"
+else
+  ssh "${NAS_HOST}" "find '${REMOTE_DIR}/${EMBY_DOCS_DIR}' -maxdepth 1 -type f -name '*_methods.txt' 2>/dev/null | sort" > "${tmp_file}"
+fi
+
+if [ ! -s "${tmp_file}" ]; then
+  if [ "${PULL_ALL}" -eq 1 ]; then
+    echo "No files matched: ${REMOTE_DIR}/emby_*/*_methods.txt"
+  else
+    echo "No files matched: ${REMOTE_DIR}/${EMBY_DOCS_DIR}/*_methods.txt"
+  fi
+  exit 0
+fi
+
+count=0
+skipped=0
+overwritten=0
+while IFS= read -r remote_path; do
+  [ -n "${remote_path}" ] || continue
+
+  if [ "${PULL_ALL}" -eq 1 ]; then
+    remote_docs_dir="$(basename "$(dirname "${remote_path}")")"
+    remote_version="$(version_from_docs_dir "${remote_docs_dir}")"
+    rel_path="$(normalize_method_filename_for_version "$(basename "${remote_path}")" "${remote_version}")"
+    local_path="${LOCAL_DIR}/${remote_version}/${rel_path}"
+  else
+    rel_path="$(normalize_method_filename "$(basename "${remote_path}")")"
+    local_path="${TARGET_DIR}/${rel_path}"
+  fi
+
+  local_dir="$(dirname "${local_path}")"
+  mkdir -p "${local_dir}"
+
+  if [ -f "${local_path}" ]; then
+    if [ "${OVERWRITE}" -eq 1 ]; then
+      echo "Overwriting ${NAS_HOST}:${remote_path} -> ${local_path}"
+      scp "${NAS_HOST}:${remote_path}" "${local_path}"
+      count=$((count + 1))
+      overwritten=$((overwritten + 1))
+      continue
+    fi
+
+    echo "Skip existing: ${local_path}"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  echo "Copying ${NAS_HOST}:${remote_path} -> ${local_path}"
+  scp "${NAS_HOST}:${remote_path}" "${local_path}"
+  count=$((count + 1))
+done < "${tmp_file}"
+
+echo "Done. Downloaded ${count} file(s), overwritten ${overwritten} file(s), skipped ${skipped} existing file(s)."
+if [ "${PULL_ALL}" -eq 1 ]; then
+  find "${LOCAL_DIR}" -maxdepth 2 -type f -path "${LOCAL_DIR}/*/*_methods.txt" -print
+else
+  echo "Target: ${TARGET_DIR}"
+  find "${TARGET_DIR}" -maxdepth 1 -type f -name '*_methods.txt' -print
+fi

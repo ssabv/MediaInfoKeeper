@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "EmbyPlugin": {
+      "commandName": "Executable",
+      "executablePath": "bash",
+      "commandLineArgs": "Scripts/restart --configuration $(Configuration)",
+      "workingDirectory": "."
+    }
+  }
+}

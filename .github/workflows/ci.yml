@@ -1,0 +1,333 @@
+name: Build MediaInfoKeeper
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths-ignore:
+      - "README.md"
+      - "Docs/**"
+      - ".gitignore"
+      - "LICENSE"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        default: beta
+        options:
+          - stable
+          - beta
+      version:
+        description: "Release version (for example: 1.6.6.10)"
+        required: false
+        type: string
+      beta_suffix:
+        description: "Beta suffix (optional, default: next available beta number)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      release_channel: ${{ steps.release_metadata.outputs.release_channel }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.x'
+          cache: true
+          cache-dependency-path: |
+            Directory.Build.props
+
+      - name: Restore
+        run: dotnet restore MediaInfoKeeper.csproj
+ 
+      - name: Read version
+        id: read_version
+        shell: bash
+        run: |
+          app_version=$(cat MediaInfoKeeper.csproj | sed -ne "s/.*<AssemblyVersion>\\(.*\\)<\\/AssemblyVersion>.*/\\1/p")
+          echo "app_version=$app_version" >> $GITHUB_ENV
+
+      - name: Detect push release channel
+        id: detect_push_channel
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          before_sha="${{ github.event.before }}"
+          current_sha="${{ github.sha }}"
+          release_channel="beta"
+
+          if [[ "$before_sha" =~ ^0+$ ]]; then
+            if git show "$current_sha:MediaInfoKeeper.csproj" >/dev/null 2>&1; then
+              release_channel="stable"
+            fi
+          elif git diff --name-only "$before_sha" "$current_sha" -- MediaInfoKeeper.csproj | grep -q '^MediaInfoKeeper\.csproj$'; then
+            before_version="$(git show "$before_sha:MediaInfoKeeper.csproj" | sed -nE 's/.*<AssemblyVersion>([^<]+)<\/AssemblyVersion>.*/\1/p')"
+            current_version="$(sed -nE 's/.*<AssemblyVersion>([^<]+)<\/AssemblyVersion>.*/\1/p' MediaInfoKeeper.csproj)"
+
+            if [[ -n "$current_version" && "$before_version" != "$current_version" ]]; then
+              release_channel="stable"
+            fi
+          fi
+
+          echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve beta version
+        id: beta_version
+        shell: bash
+        run: |
+          increment_version() {
+            local major minor build revision
+            IFS='.' read -r major minor build revision <<< "$1"
+            printf '%d.%d.%d.%d\n' "${major:-0}" "${minor:-0}" "${build:-0}" "$((10#${revision:-0} + 1))"
+          }
+
+          next_beta_version="$(increment_version "$app_version")"
+
+          latest_beta_suffix="$(git tag -l "v${next_beta_version}-beta.*" | sed -E 's/.*-beta\.([0-9]+)$/\1/' | sort -n | tail -n 1)"
+          if [[ -z "$latest_beta_suffix" ]]; then
+            next_beta_suffix="1"
+          else
+            next_beta_suffix="$((10#${latest_beta_suffix} + 1))"
+          fi
+
+          echo "next_beta_version=$next_beta_version" >> "$GITHUB_OUTPUT"
+          echo "next_beta_suffix=$next_beta_suffix" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release metadata
+        id: release_metadata
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            channel="${{ github.event.inputs.channel }}"
+            input_version="${{ github.event.inputs.version }}"
+            input_beta_suffix="${{ github.event.inputs.beta_suffix }}"
+
+            if [[ "$channel" == "beta" ]]; then
+              if [[ -z "$input_version" ]]; then
+                base_tag="${{ steps.beta_version.outputs.next_beta_version }}"
+              else
+                base_tag="$input_version"
+              fi
+
+              if [[ -z "$input_beta_suffix" ]]; then
+                if [[ -z "$input_version" ]]; then
+                  beta_suffix="${{ steps.beta_version.outputs.next_beta_suffix }}"
+                else
+                  latest_manual_suffix="$(git tag -l "v${base_tag}-beta.*" | sed -E 's/.*-beta\.([0-9]+)$/\1/' | sort -n | tail -n 1)"
+                  if [[ -z "$latest_manual_suffix" ]]; then
+                    beta_suffix="1"
+                  else
+                    beta_suffix="$((10#${latest_manual_suffix} + 1))"
+                  fi
+                fi
+              else
+                beta_suffix="$input_beta_suffix"
+              fi
+
+              pre_release="true"
+              release_mode="manual_beta"
+              release_channel="Beta"
+              release_tag="v${base_tag}-beta.${beta_suffix}"
+              release_name="MediaInfoKeeper v${base_tag}-beta.${beta_suffix}"
+              package_version="${base_tag}-beta.${beta_suffix}"
+              assembly_version="$base_tag"
+              file_version="$base_tag"
+            else
+              pre_release="false"
+              release_mode="manual_stable_replace"
+              release_channel="Stable"
+              release_tag=""
+              release_name=""
+              package_version="${app_version}"
+              assembly_version="${app_version}"
+              file_version="${app_version}"
+            fi
+          else
+            push_channel="${{ steps.detect_push_channel.outputs.release_channel }}"
+
+            if [[ "$push_channel" == "stable" ]]; then
+              pre_release="false"
+              release_mode="push_stable"
+              release_channel="Stable"
+              release_tag="v${app_version}"
+              release_name="MediaInfoKeeper v${app_version}"
+              package_version="${app_version}"
+              assembly_version="${app_version}"
+              file_version="${app_version}"
+            else
+              base_tag="${{ steps.beta_version.outputs.next_beta_version }}"
+              beta_suffix="${{ steps.beta_version.outputs.next_beta_suffix }}"
+              pre_release="true"
+              release_mode="push_beta"
+              release_channel="Beta"
+              release_tag="v${base_tag}-beta.${beta_suffix}"
+              release_name="MediaInfoKeeper v${base_tag}-beta.${beta_suffix}"
+              package_version="${base_tag}-beta.${beta_suffix}"
+              assembly_version="${base_tag}"
+              file_version="${base_tag}"
+            fi
+          fi
+
+          echo "release_mode=$release_mode" >> $GITHUB_ENV
+          echo "release_channel=$release_channel" >> $GITHUB_ENV
+          echo "pre_release=$pre_release" >> $GITHUB_ENV
+          echo "release_tag=$release_tag" >> $GITHUB_ENV
+          echo "release_name=$release_name" >> $GITHUB_ENV
+          echo "package_version=$package_version" >> $GITHUB_ENV
+          echo "assembly_version=$assembly_version" >> $GITHUB_ENV
+          echo "file_version=$file_version" >> $GITHUB_ENV
+          echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve latest stable release
+        if: env.release_mode == 'manual_stable_replace'
+        id: latest_stable_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const latestStable = releases.find((release) => !release.draft && !release.prerelease);
+            if (!latestStable) {
+              core.setFailed("No stable release found to replace.");
+              return;
+            }
+            core.setOutput("tag_name", latestStable.tag_name);
+            core.setOutput("release_name", latestStable.name || latestStable.tag_name);
+
+      - name: Finalize release metadata
+        if: env.release_mode == 'manual_stable_replace'
+        shell: bash
+        run: |
+          echo "release_tag=${{ steps.latest_stable_release.outputs.tag_name }}" >> $GITHUB_ENV
+          echo "release_name=${{ steps.latest_stable_release.outputs.release_name }}" >> $GITHUB_ENV
+
+      - name: Install ilrepack tool
+        run: dotnet tool install -g dotnet-ilrepack --version 2.0.44
+
+      - name: Build release assets
+        shell: bash
+        run: |
+          mkdir -p Build/release-assets
+
+          build_asset() {
+            local bundle="$1"
+            local rid="$2"
+            local asset_name="$3"
+            local target_framework="$4"
+
+            echo "Building $asset_name (bundle=$bundle rid=${rid:-full} tfm=$target_framework)"
+
+            local args=(
+              "build" "MediaInfoKeeper.csproj"
+              "-c" "Release"
+              "--no-restore"
+              "-t:Rebuild"
+              "-f" "$target_framework"
+              "/p:AssemblyVersion=${{ env.assembly_version }}"
+              "/p:FileVersion=${{ env.file_version }}"
+              "/p:Version=${{ env.package_version }}"
+              "/p:InformationalVersion=${{ env.package_version }}"
+              "/p:ReleaseTag=${{ env.release_tag }}"
+              "/p:TokenizerBundle=$bundle"
+            )
+
+            if [[ -n "$rid" ]]; then
+              args+=("/p:TokenizerRid=$rid")
+            fi
+
+            dotnet "${args[@]}"
+            cp "Build/bin/Release/$target_framework/MediaInfoKeeper.dll" "Build/release-assets/$asset_name"
+          }
+
+          build_asset "single-rid" "win-x64" "MediaInfoKeeper.win-x64.dll" "net8.0"
+          build_asset "single-rid" "win-arm64" "MediaInfoKeeper.win-arm64.dll" "net8.0"
+          build_asset "single-rid" "linux-x64" "MediaInfoKeeper.linux-x64.dll" "net8.0"
+          build_asset "single-rid" "linux-arm64" "MediaInfoKeeper.linux-arm64.dll" "net8.0"
+          build_asset "single-rid" "osx-x64" "MediaInfoKeeper.osx-x64.dll" "net6.0"
+          build_asset "single-rid" "osx-arm64" "MediaInfoKeeper.osx-arm64.dll" "net6.0"
+          build_asset "full" "" "MediaInfoKeeper.dll" "net8.0"
+
+      - name: Generate release body from tag history
+        id: release_body
+        shell: bash
+        run: |
+          body_file="$RUNNER_TEMP/release_body.md"
+          release_channel="${{ env.release_channel }}"
+          boundary_tag=""
+          changes_title=""
+
+          if [[ "$release_channel" == "Stable" ]]; then
+            # Stable: list commits since the latest stable tag.
+            boundary_tag="$(git tag --merged HEAD --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+            changes_title="Changes since previous stable tag"
+          else
+            # Beta: list commits since the previous tag (stable or beta).
+            boundary_tag="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+            changes_title="Changes since previous tag"
+          fi
+
+          {
+            echo "Release channel: \`${{ env.release_channel }}\`"
+            echo
+            if [[ -n "$boundary_tag" ]]; then
+              echo "$changes_title: \`$boundary_tag\`"
+              echo
+
+              commit_lines="$(git log --no-merges --pretty='* %h %s' "${boundary_tag}..HEAD")"
+              if [[ -n "$commit_lines" ]]; then
+                echo "$commit_lines"
+              else
+                echo "* No code changes found since \`$boundary_tag\`."
+              fi
+            else
+              echo "$changes_title:"
+              echo
+              commit_lines="$(git log --no-merges --pretty='* %h %s')"
+              if [[ -n "$commit_lines" ]]; then
+                echo "$commit_lines"
+              else
+                echo "* No commits found."
+              fi
+            fi
+          } > "$body_file"
+
+          echo "release_body_path=$body_file" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.release_name }}
+          tag_name: ${{ env.release_tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: ${{ steps.release_body.outputs.release_body_path }}
+          overwrite_files: true
+          prerelease: ${{ env.pre_release }}
+          generate_release_notes: false
+          files: Build/release-assets/*.dll
+
+  cleanup_prereleases_after_stable:
+    needs: build
+    if: needs.build.result == 'success' && needs.build.outputs.release_channel == 'Stable'
+    uses: ./.github/workflows/cleanup-prereleases-after-stable.yml
+    permissions:
+      contents: write

@@ -1,0 +1,107 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net6.0</TargetFrameworks>
+    <Description>MediaInfoKeeper Emby plugin</Description>
+    <PackageTags>emby;plugin;pms;media;server;</PackageTags>
+    <BaseOutputPath>Build\bin\</BaseOutputPath>
+    <AssemblyVersion>1.7.4.4</AssemblyVersion>
+    <FileVersion>1.7.4.4</FileVersion>
+    <Version>1.7.4</Version>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TokenizerBundle Condition="'$(TokenizerBundle)' == ''">full</TokenizerBundle>
+  </PropertyGroup>
+  <Target Name="ValidateTokenizerBuildConfiguration" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(TokenizerBundle)' != 'full' and '$(TokenizerBundle)' != 'single-rid'" Text="TokenizerBundle must be either 'full' or 'single-rid'." />
+    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == ''" Text="TokenizerRid must be specified when TokenizerBundle is 'single-rid'." />
+    <Error Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' != 'win-x64' and '$(TokenizerRid)' != 'win-arm64' and '$(TokenizerRid)' != 'linux-x64' and '$(TokenizerRid)' != 'linux-arm64' and '$(TokenizerRid)' != 'osx-x64' and '$(TokenizerRid)' != 'osx-arm64'" Text="TokenizerRid must be one of: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
+  </Target>
+  <Target Name="PrepareReleaseTagMetadata" BeforeTargets="GetAssemblyAttributes" Condition="'$(ReleaseTag)' != ''">
+    <ItemGroup Condition="'$(ReleaseTag)' != ''">
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>ReleaseTag</_Parameter1>
+        <_Parameter2>$(ReleaseTag)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
+    <None Remove="Resources\\ThumbImage.png" />
+    <None Remove="Resources\\mediainfokeeper.js" />
+    <None Remove="Resources\\ede.js" />
+    <None Remove="Resources\\Tokenizer\\**\\*.dll" />
+    <None Remove="Resources\\Tokenizer\\**\\*.so" />
+    <None Remove="Resources\\Tokenizer\\**\\*.dylib" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'full'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\**\\*.dll" />
+    <EmbeddedResource Include="Resources\\Tokenizer\\**\\*.so" />
+    <EmbeddedResource Include="Resources\\Tokenizer\\**\\*.dylib" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'win-x64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\win\\x64\\simple.dll" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'win-arm64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\win\\arm64\\simple.dll" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'linux-x64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\linux\\x64\\libsimple.so" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'linux-arm64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\linux\\arm64\\libsimple.so" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'osx-x64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\mac\\x64\\libsimple.dylib" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TokenizerBundle)' == 'single-rid' and '$(TokenizerRid)' == 'osx-arm64'">
+    <EmbeddedResource Include="Resources\\Tokenizer\\mac\\arm64\\libsimple.dylib" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\\ThumbImage.png" />
+    <EmbeddedResource Include="Resources\\mediainfokeeper.js" />
+    <EmbeddedResource Include="Resources\\ede.js" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DiscUtils.Udf" Version="0.16.13" />
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.90" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    <PackageReference Include="SQLitePCL.pretty.core" Version="1.2.2" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="6.0.2" Condition="'$(TargetFramework)' == 'net6.0'" />
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+    <PackageReference Include="TinyPinyin" Version="1.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="SQLitePCLRawEx.core">
+      <HintPath>Resources\dll\SQLitePCLRawEx.core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Patch\DataBase\" />
+  </ItemGroup>
+
+  <Target Name="CopyHarmony" BeforeTargets="PostBuildEvent">
+    <PropertyGroup>
+      <HarmonyPackagePath>$(NuGetPackageRoot)lib.harmony\2.4.2\lib\net5.0\0Harmony.dll</HarmonyPackagePath>
+    </PropertyGroup>
+    <Copy SourceFiles="$(HarmonyPackagePath)" DestinationFolder="$(TargetDir)" Condition="Exists('$(HarmonyPackagePath)')" />
+  </Target>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <PropertyGroup>
+      <IlRepackExe Condition="'$(OS)'=='Windows_NT'">$(UserProfile)\.dotnet\tools\ilrepack.exe</IlRepackExe>
+      <IlRepackExe Condition="'$(OS)'!='Windows_NT'">$(HOME)/.dotnet/tools/ilrepack</IlRepackExe>
+      <TinyPinyinAssembly>$(TargetDir)TinyPinyin.dll</TinyPinyinAssembly>
+    </PropertyGroup>
+    <ItemGroup>
+      <IlRepackInput Include="$(TargetDir)0Harmony.dll" Condition="Exists('$(TargetDir)0Harmony.dll')" />
+      <IlRepackInput Include="$(TinyPinyinAssembly)" Condition="Exists('$(TinyPinyinAssembly)')" />
+      <!-- DiscUtils.Udf brings these runtime assemblies transitively; merge them to avoid Emby plugin load failures. -->
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Core.dll" Condition="Exists('$(TargetDir)DiscUtils.Core.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Iso9660.dll" Condition="Exists('$(TargetDir)DiscUtils.Iso9660.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Streams.dll" Condition="Exists('$(TargetDir)DiscUtils.Streams.dll')" />
+      <IlRepackInput Include="$(TargetDir)DiscUtils.Udf.dll" Condition="Exists('$(TargetDir)DiscUtils.Udf.dll')" />
+    </ItemGroup>
+    <Exec Command="$(IlRepackExe) /out:$(TargetDir)$(TargetFileName) $(TargetPath) @(IlRepackInput->'%(Identity)', ' ') /lib:$(TargetDir)" />
+  </Target>
+
+</Project>

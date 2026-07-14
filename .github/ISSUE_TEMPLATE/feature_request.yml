@@ -1,0 +1,28 @@
+name: Feature Request
+description: 欢迎自行提交 PR，合理的改动都会合并
+title: "[FR] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: requirement
+    attributes:
+      label: 需求说明
+      description: 说明使用场景、当前问题和期望效果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: 实现路径
+      description: 说明涉及的模块、接口、处理流程或参考实现。
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他补充
+    validations:
+      required: false
