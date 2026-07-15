@@ -3,31 +3,15 @@
   <img src="Resources/ThumbImage.png" alt="MediaInfoKeeper" width="320" />
 </p>
 
+<h3 align="center">MediaInfoKeeper</h3>
+<p align="center"><b>Bangumi 角色中文名增强版</b></p>
+
 <p align="center">
-  <a href="https://github.com/honue/MediaInfoKeeper/releases">
-    <img src="https://img.shields.io/github/v/release/honue/MediaInfoKeeper?label=MediaInfoKeeper" />
+  <a href="https://github.com/ssabv/MediaInfoKeeper/releases">
+    <img src="https://img.shields.io/github/v/release/ssabv/MediaInfoKeeper?label=MediaInfoKeeper+Bangumi" />
   </a>
-  <a href="https://github.com/honue/MediaInfoKeeper/stargazers">
-    <img src="https://img.shields.io/github/stars/honue/MediaInfoKeeper" />
-  </a>
-  <a href="https://api.github.com/repos/honue/mediainfokeeper/releases/latest">
-    <img src="https://img.shields.io/github/downloads/honue/MediaInfoKeeper/latest/total?label=LatestUsers" />
-  </a>
-  <a href="https://github.com/honue/MediaInfoKeeper/releases">
-    <img src="https://img.shields.io/github/downloads/honue/MediaInfoKeeper/total?label=Downloads" />
-  </a>
-  <a href="https://github.com/MediaBrowser/Emby.Releases/releases">
-    <img src="https://img.shields.io/github/v/release/MediaBrowser/Emby.Releases?label=Emby" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/honue/MediaInfoKeeper" />
-  </a>
-  <br>
-  <a href="https://github.com/honue/MediaInfoKeeper/wiki">
-    <img src="https://img.shields.io/badge/Wiki-功能说明-blue?logo=github&amp;logoColor=white" />
-  </a>
-  <a href="https://t.me/EmbyPatch_Channel">
-    <img src="https://img.shields.io/badge/Telegram频道-EmbyPatch-26A5E4?logo=telegram&amp;logoColor=white" />
+  <a href="https://github.com/honue/MediaInfoKeeper">
+    <img src="https://img.shields.io/badge/Upstream-honue%2FMediaInfoKeeper-blue" />
   </a>
 </p>
 <p align="center">
@@ -41,6 +25,23 @@
 2. 放入 Emby 配置目录中的 `plugins` 目录。
 3. 务必重命名为 `MediaInfoKeeper.dll`，否则后续自动更新会有两个 dll 存在。
 4. 重启 Emby，在插件页面完成配置。
+
+✨ 新增：Bangumi 角色中文名增强
+--------
+
+原版 MediaInfoKeeper 不含此功能，本分支在此基础上增加。
+
+**功能**：从 Bangumi 获取角色中文名，写入 Emby 元数据。支持计划任务手动触发，配合媒体库范围筛选。
+
+**搜索策略**（源语言优先）：
+- 国漫 → 中文搜索，日漫 → 日文搜索，美漫 → 英文搜索
+- 首次搜索无结果时统一降级为英文搜索
+
+**国漫额外增强**：获取声优 Bangumi 别名与 TMDB 声优名交叉匹配，提升命中率。
+
+**使用方法**：
+1. 插件设置 → 元数据 → 开启「Bangumi 角色中文名增强」
+2. 计划任务 → Bangumi 角色增强 → 配置媒体库范围 → 执行
 
 🧩 兼容性
 -----------
