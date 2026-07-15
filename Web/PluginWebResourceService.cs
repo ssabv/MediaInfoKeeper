@@ -76,7 +76,7 @@ namespace MediaInfoKeeper.Web {
             if (request == null || string.IsNullOrWhiteSpace(request.ItemId)) return CreateEmptyDanmuResult();
 
             var logger = Plugin.Instance?.Logger;
-            if (Plugin.Instance?.Options?.MetaData?.EnableDanmuApi != true) {
+            if (Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuApi != true) {
                 logger?.Debug("弹幕API: 已禁用，返回空结果");
                 return CreateEmptyDanmuResult();
             }
@@ -94,7 +94,8 @@ namespace MediaInfoKeeper.Web {
 
             var danmuXmlPath = Path.Combine(item.ContainingFolderPath, item.FileNameWithoutExtension + ".xml");
             var localExists = File.Exists(danmuXmlPath);
-            var alwaysFetchLatest = Plugin.Instance?.Options?.MetaData?.AlwaysFetchLatestDanmu == true;
+            var alwaysFetchLatest =
+                Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.AlwaysFetchLatestDanmu == true;
             var modeLabel = alwaysFetchLatest ? "始终获取最新" : "本地优先";
             var logContext = $"mode={modeLabel} itemId={request.ItemId} item={item.FileName}";
 

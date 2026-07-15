@@ -34,8 +34,8 @@ namespace MediaInfoKeeper.Services {
         }
 
         public bool IsEnabled =>
-            Plugin.Instance?.Options?.MetaData?.EnableDanmuApi == true &&
-            !string.IsNullOrWhiteSpace(Plugin.Instance?.Options?.MetaData?.DanmuApiBaseUrl);
+            Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuApi == true &&
+            !string.IsNullOrWhiteSpace(Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.DanmuApiBaseUrl);
 
         public bool IsSupportedItem(BaseItem item) {
             return item is Episode || item is Movie;
@@ -234,7 +234,7 @@ namespace MediaInfoKeeper.Services {
             if (!TryBuildSearchRequest(item, out var animeTitle, out var episodeNumber))
                 return new DanmuFetchResult { Reason = "无法解析标题或集数" };
 
-            var baseUrl = Plugin.Instance?.Options?.MetaData?.DanmuApiBaseUrl?.Trim();
+            var baseUrl = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.DanmuApiBaseUrl?.Trim();
             if (TryGetCachedDanmuXmlBytes(item, out var cachedXmlBytes)) return new DanmuFetchResult { XmlBytes = cachedXmlBytes };
 
             var cacheKey = BuildSearchCacheKey(animeTitle, episodeNumber);
@@ -270,7 +270,7 @@ namespace MediaInfoKeeper.Services {
         }
 
         private static bool ShouldAlwaysFetchLatest() {
-            return Plugin.Instance?.Options?.MetaData?.AlwaysFetchLatestDanmu == true;
+            return Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.AlwaysFetchLatestDanmu == true;
         }
 
         private static string FormatItemForLog(BaseItem item) {

@@ -202,19 +202,17 @@ namespace MediaInfoKeeper.Patch {
 
             registrations.Add(new PatchRegistration {
                 Name = "ImageCapture",
-                Initialize = options => ImageCapture.Initialize(logger, options.MetaData.EnableImageCapture),
-                Configure = options =>
-                    ImageCapture.Configure(IsPluginEnabled(options) && options.MetaData.EnableImageCapture),
-                IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableImageCapture,
+                Initialize = _ => ImageCapture.Initialize(logger, true),
+                Configure = options => ImageCapture.Configure(IsPluginEnabled(options)),
+                IsEnabled = options => IsPluginEnabled(options),
                 IsReady = () => ImageCapture.IsReady
             });
 
             registrations.Add(new PatchRegistration {
                 Name = "EmbeddedImages",
-                Initialize = options => EmbeddedImages.Initialize(logger, options.MetaData.EnableEmbeddedImages),
-                Configure = options =>
-                    EmbeddedImages.Configure(IsPluginEnabled(options) && options.MetaData.EnableEmbeddedImages),
-                IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableEmbeddedImages,
+                Initialize = _ => EmbeddedImages.Initialize(logger, true),
+                Configure = options => EmbeddedImages.Configure(IsPluginEnabled(options)),
+                IsEnabled = options => IsPluginEnabled(options),
                 IsReady = () => EmbeddedImages.IsReady
             });
 
@@ -577,10 +575,11 @@ namespace MediaInfoKeeper.Patch {
                 Name = "DashboardResourcePatch",
                 Initialize = options => DashboardResourcePatch.Initialize(
                     logger,
-                    IsPluginEnabled(options) && options.MetaData.EnableDanmakuJs),
+                    IsPluginEnabled(options) && options.MetaData.ScrapersEditor.Danmu.EnableDanmakuJs),
                 Configure = options => DashboardResourcePatch.Configure(
-                    IsPluginEnabled(options) && options.MetaData.EnableDanmakuJs),
-                IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableDanmakuJs,
+                    IsPluginEnabled(options) && options.MetaData.ScrapersEditor.Danmu.EnableDanmakuJs),
+                IsEnabled = options => IsPluginEnabled(options) &&
+                                       options.MetaData.ScrapersEditor.Danmu.EnableDanmakuJs,
                 IsReady = () => DashboardResourcePatch.IsReady
             });
 

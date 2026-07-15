@@ -36,9 +36,9 @@ namespace MediaInfoKeeper.ScheduledTask {
             logger.Info("片头片尾共享计划任务开始");
 
             var submitTheIntroDb = !string.IsNullOrWhiteSpace(
-                Plugin.Instance?.Options?.IntroSkip?.TheIntroDbApiKey);
+                Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.TheIntroDb?.ApiKey);
             var submitIntroDb = !string.IsNullOrWhiteSpace(
-                Plugin.Instance?.Options?.IntroSkip?.IntroDbApiKey);
+                Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.IntroDb?.ApiKey);
             if (!submitTheIntroDb && !submitIntroDb) {
                 progress?.Report(100.0);
                 logger.Warn("片头片尾共享计划任务跳过: TheIntroDB 和 IntroDB 均未配置 API Key");

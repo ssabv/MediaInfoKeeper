@@ -229,6 +229,9 @@ namespace MediaInfoKeeper {
                 options.MainPage ??= new MainPageOptions();
                 options.MainPage.PrepareScheduledTaskEditorForUi();
                 options.MediaInfo ??= new MediaInfoOptions();
+                options.IntroSkip ??= new IntroSkipOptions();
+                options.MetaData ??= new MetaDataOptions();
+                options.MetaData.EnsureScraperEditors();
                 return options;
             }
         }
@@ -387,6 +390,7 @@ namespace MediaInfoKeeper {
             options.GetNetWorkOptions();
             options.Enhance ??= new EnhanceOptions();
             options.MetaData ??= new MetaDataOptions();
+            options.MetaData.EnsureScraperEditors();
 #if DEBUG
             options.Debug ??= new DebugOptions();
 #endif
@@ -435,8 +439,7 @@ namespace MediaInfoKeeper {
                 var node = JsonNode.Parse(json);
                 RedactSecret(node, nameof(MainPageOptions.UpdatePluginTaskEditorOptions.GitHubToken));
                 RedactSecret(node, nameof(NetWorkOptions.AlternativeTmdbApiKey));
-                RedactSecret(node, nameof(IntroSkipOptions.TheIntroDbApiKey));
-                RedactSecret(node, nameof(IntroSkipOptions.IntroDbApiKey));
+                RedactSecret(node, nameof(MetaDataOptions.TheIntroDbEditorOptions.ApiKey));
                 Logger.Debug("{0} 配置{1}: {2}", Name, action,
                     node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ??
                     string.Empty);

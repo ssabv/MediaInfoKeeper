@@ -4,6 +4,8 @@ using System.ComponentModel;
 using Emby.Web.GenericEdit;
 using Emby.Web.GenericEdit.Common;
 using Emby.Web.GenericEdit.Editors;
+using Emby.Web.GenericEdit.Elements;
+using Emby.Web.GenericEdit.Elements.List;
 using MediaBrowser.Model.Attributes;
 using MediaBrowser.Model.GenericEdit;
 
@@ -25,13 +27,9 @@ namespace MediaInfoKeeper.Options {
 
         public override string EditorDescription => string.Empty;
 
-        [DisplayName("允许 Strm 视频截图")]
-        [Description("让 Emby 能为 Strm 使用 Image Capture 刮削器。")]
-        public bool EnableImageCapture { get; set; } = true;
+        public GenericItemList ScraperEntries { get; set; } = new();
 
-        [DisplayName("允许 Strm 音频内嵌封面")]
-        [Description("让 Emby 能为 Strm 使用 Embedded Images 刮削器。")]
-        public bool EnableEmbeddedImages { get; set; } = true;
+        [Browsable(false)] public ScraperEditorOptions ScrapersEditor { get; set; } = new();
 
         [DisplayName("刷新元数据并发数")]
         [Description("设置插件刷新元数据任务的最大并发数，修改后重启生效，默认 3。")]
@@ -71,29 +69,6 @@ namespace MediaInfoKeeper.Options {
         [Description("开启后在剧集目录读取 episodegroup.json；当在线剧集组可用时会自动写入本地文件用于后续复用。")]
         public bool EnableLocalEpisodeGroup { get; set; } = false;
 
-        [DisplayName("加载 dd-danmaku 弹幕js")]
-        [Description("修改 index.html，注入 ede.js")]
-        public bool EnableDanmakuJs { get; set; } = false;
-
-        [DisplayName("启用弹幕 API")]
-        [Description("开启后启用 /api/danmu/{ItemId}/raw 路由的弹幕能力；Senplayer，FileBar、弹幕js等可以直接使Emby提供的弹幕文件，关闭后该路由不提供弹幕返回。")]
-        public bool EnableDanmuApi { get; set; } = false;
-
-        [DisplayName("danmu_api BaseUrl")]
-        [Description("例如 http://192.168.33.100:9321/token ，danmu_api 项目 https://github.com/huangxd-/danmu_api")]
-        [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
-        public string DanmuApiBaseUrl { get; set; } = string.Empty;
-
-        [DisplayName("预加载弹幕")]
-        [Description("播放剧集时，预加载下一集弹幕到本地。")]
-        [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
-        public bool EnableDanmuPrefetch { get; set; } = false;
-
-        [DisplayName("始终获取最新弹幕")]
-        [Description("开启后请求弹幕时会优先从 danmu_api 拉取最新 xml 并写入本地；拉取完成或超时后返回可用 xml。")]
-        [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
-        public bool AlwaysFetchLatestDanmu { get; set; } = true;
-
         [DisplayName("启用 TVDB 中文回退")]
         [Description("按备选语言顺序补全 TVDB 电影/剧集/季/集元数据，并尽量把英文放到最后。")]
         public bool EnableTvdbFallback { get; set; } = true;
@@ -107,6 +82,14 @@ namespace MediaInfoKeeper.Options {
         public string TvdbFallbackLanguages { get; set; } = "zhtw,yue";
 
         public void Initialize() {
+            EnsureScraperEditors();
+            ScraperEntries = new GenericItemList(new[] {
+                CreateScraperEntry("IntroDB", "适用条目：集；刮削片头片尾标记。", "metadata.scraper.introDb"),
+                CreateScraperEntry("TheIntroDB", "适用条目：电影、集；刮削片头片尾标记。", "metadata.scraper.theIntroDb"),
+                CreateScraperEntry("Danmu", "适用条目：电影、集；刮削弹幕。", "metadata.scraper.danmu"),
+                CreateScraperEntry("DoubanRole", "适用条目：电影、剧集；使用豆瓣人物角色名。")
+            });
+
             FallbackLanguageList.Clear();
             foreach (var language in SupportedFallbackLanguages)
                 FallbackLanguageList.Add(new EditorSelectOption {
@@ -122,6 +105,13 @@ namespace MediaInfoKeeper.Options {
                     Name = language,
                     IsEnabled = true
                 });
+        }
+
+        public void EnsureScraperEditors() {
+            ScrapersEditor ??= new ScraperEditorOptions();
+            ScrapersEditor.TheIntroDb ??= new TheIntroDbEditorOptions();
+            ScrapersEditor.IntroDb ??= new IntroDbEditorOptions();
+            ScrapersEditor.Danmu ??= new DanmuEditorOptions();
         }
 
         public override IEditObjectContainer CreateEditContainer() {
@@ -157,12 +147,13 @@ namespace MediaInfoKeeper.Options {
                 groupedItems.Add(group);
             }
 
-            AddGroup("MetaData", "Emby 元数据刷新时，插件会监听元数据刷新过程，阻止媒体信息丢失。",
-                nameof(EnableImageCapture),
-                nameof(EnableEmbeddedImages),
-                nameof(BlockNonFallbackLanguage),
-                nameof(MaxConcurrentCount)
+            AddGroup("元数据", "",
+                nameof(MaxConcurrentCount),
+                nameof(BlockNonFallbackLanguage)
             );
+
+            AddGroup("刮削器", "配置插件的元数据 Provider 参数。是否启用及优先顺序请在媒体库的元数据刮削器中设置。",
+                nameof(ScraperEntries));
 
             AddGroup("TMDB", "",
                 nameof(EnableAlternativeTitleFallback),
@@ -171,13 +162,6 @@ namespace MediaInfoKeeper.Options {
                 nameof(EnableMovieDbEpisodeGroup),
                 nameof(EnableMissingEpisodesEnhance),
                 nameof(EnableLocalEpisodeGroup));
-
-            AddGroup("Danmaku", "",
-                nameof(EnableDanmakuJs),
-                nameof(EnableDanmuApi),
-                nameof(DanmuApiBaseUrl),
-                nameof(EnableDanmuPrefetch),
-                nameof(AlwaysFetchLatestDanmu));
 
             AddGroup("TVDB", "",
                 nameof(EnableTvdbFallback),
@@ -200,6 +184,84 @@ namespace MediaInfoKeeper.Options {
             if (groupedItems.Count > 0) root.EditorItems = groupedItems.ToArray();
 
             return container;
+        }
+
+        private static GenericListItem CreateScraperEntry(string name, string description, string commandId = null) {
+            var item = new GenericListItem {
+                PrimaryText = name,
+                SecondaryText = description
+            };
+            if (!string.IsNullOrEmpty(commandId))
+                item.Button2 = new ButtonItem("配置") {
+                    CommandId = commandId,
+                    Icon = IconNames.settings
+                };
+
+            return item;
+        }
+
+        public class DanmuEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("加载 dd-danmaku 弹幕js")]
+            [Description("修改 index.html，注入 ede.js")]
+            public bool EnableDanmakuJs { get; set; } = true;
+
+            [DisplayName("启用弹幕 API")]
+            [Description("开启后启用 /api/danmu/{ItemId}/raw 路由的弹幕能力；Senplayer，FileBar、弹幕js等可以直接使Emby提供的弹幕文件，关闭后该路由不提供弹幕返回。")]
+            public bool EnableDanmuApi { get; set; } = true;
+
+            [DisplayName("danmu_api BaseUrl")]
+            [Description("例如 http://192.168.33.100:9321/token ，danmu_api 项目 https://github.com/huangxd-/danmu_api")]
+            [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
+            public string DanmuApiBaseUrl { get; set; } = string.Empty;
+
+            [DisplayName("预加载弹幕")]
+            [Description("播放剧集时，预加载下一集弹幕到本地。")]
+            [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
+            public bool EnableDanmuPrefetch { get; set; } = true;
+
+            [DisplayName("始终获取最新弹幕")]
+            [Description("开启后请求弹幕时会优先从 danmu_api 拉取最新 xml 并写入本地；拉取完成或超时后返回可用 xml。")]
+            [VisibleCondition(nameof(EnableDanmuApi), SimpleCondition.IsTrue)]
+            public bool AlwaysFetchLatestDanmu { get; set; } = true;
+        }
+
+        public class TheIntroDbEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("API 地址")]
+            [Description("TheIntroDB v3 API 地址。是否启用 TheIntroDB Provider 请在媒体库的元数据抓取器中控制。")]
+            public string BaseUrl { get; set; } = "https://api.theintrodb.org/v3";
+
+            [DisplayName("API Key")]
+            [Description("可选。填写后可提高 TheIntroDB 每日请求额度。共享必填。")]
+            public string ApiKey { get; set; } = string.Empty;
+        }
+
+        public class IntroDbEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("API 地址")]
+            [Description("IntroDB API 地址。是否启用 IntroDB Provider 请在电视剧媒体库的元数据抓取器中控制。")]
+            public string BaseUrl { get; set; } = "https://api.introdb.app";
+
+            [DisplayName("API Key")]
+            [Description("查询无需填写；共享片头片尾到 IntroDB 时必填。")]
+            public string ApiKey { get; set; } = string.Empty;
+        }
+
+        public class ScraperEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [DisplayName("TheIntroDB")]
+            public TheIntroDbEditorOptions TheIntroDb { get; set; } = new();
+
+            [DisplayName("IntroDB")]
+            public IntroDbEditorOptions IntroDb { get; set; } = new();
+
+            [DisplayName("Danmu")]
+            public DanmuEditorOptions Danmu { get; set; } = new();
         }
     }
 }

@@ -172,8 +172,7 @@ namespace MediaInfoKeeper.ScheduledTask {
                 ReplaceAllMetadata = replaceMetadata,
                 ReplaceAllImages = replaceImages,
                 ReplaceThumbnailImages = replaceThumbnails,
-                EnableThumbnailImageExtraction = Plugin.Instance.Options.MetaData.EnableImageCapture ||
-                                                 Plugin.Instance.Options.MetaData.EnableEmbeddedImages,
+                EnableThumbnailImageExtraction = Plugin.Instance.Options.MainPage.PlugginEnabled,
                 IsAutomated = true
             };
         }

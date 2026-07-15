@@ -80,7 +80,8 @@ namespace MediaInfoKeeper.Services {
             if (Plugin.Instance?.Options?.MainPage?.PlugginEnabled != true) return;
 
             var enableMediaInfoPrefetch = Plugin.Instance?.Options?.MediaInfo?.EnableMediaInfoPrefetch == true;
-            var enableDanmuPrefetch = Plugin.Instance?.Options?.MetaData?.EnableDanmuPrefetch == true;
+            var enableDanmuPrefetch =
+                Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuPrefetch == true;
             if (!enableMediaInfoPrefetch && !enableDanmuPrefetch) return;
 
             if (e?.Item is not Episode episode) return;
@@ -128,7 +129,7 @@ namespace MediaInfoKeeper.Services {
                     if (Plugin.Instance?.Options?.MediaInfo?.EnableMediaInfoPrefetch == true)
                         prefetchTasks.Add(QueueMediaInfoPrefetchIfNeededAsync(nextEpisode, cancellationToken));
 
-                    if (Plugin.Instance?.Options?.MetaData?.EnableDanmuPrefetch == true)
+                    if (Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuPrefetch == true)
                         prefetchTasks.Add(QueueDanmuPrefetchIfNeededAsync(nextEpisode, cancellationToken));
 
                     if (prefetchTasks.Count > 0) await Task.WhenAll(prefetchTasks).ConfigureAwait(false);
@@ -208,7 +209,8 @@ namespace MediaInfoKeeper.Services {
                 return Task.CompletedTask;
             }
 
-            var alwaysFetchLatest = Plugin.Instance?.Options?.MetaData?.AlwaysFetchLatestDanmu == true;
+            var alwaysFetchLatest =
+                Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.AlwaysFetchLatestDanmu == true;
 
             logger.Debug($"{source}: 开始 {item.FileName ?? item.Name}");
 

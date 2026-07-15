@@ -20,6 +20,7 @@ namespace MediaInfoKeeper.Options.UIBaseClasses.Store {
             "FeatureRequiresPremiere",
             "IsNewItem",
             "ScheduledTaskEntries",
+            "ScraperEntries",
             "RefreshQueueStatus",
             "ShowRefreshQueueStatus",
             "LibraryList",

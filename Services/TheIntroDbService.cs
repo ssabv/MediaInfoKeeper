@@ -46,7 +46,7 @@ namespace MediaInfoKeeper.Services {
             CancellationToken cancellationToken) {
             if (item == null) return SubmitSkipped("empty item");
 
-            var apiKey = Plugin.Instance?.Options?.IntroSkip?.TheIntroDbApiKey?.Trim();
+            var apiKey = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.TheIntroDb?.ApiKey?.Trim();
             if (string.IsNullOrWhiteSpace(apiKey)) return SubmitSkipped("missing api key");
 
             if (!TryBuildSubmissionIdentity(item, out var tmdbId, out var mediaType, out var season, out var episode,
@@ -152,7 +152,7 @@ namespace MediaInfoKeeper.Services {
             if (httpClient == null) return NotFound("IHttpClient unavailable");
 
             var apiUrl = BuildApiUrl("media");
-            var apiKey = Plugin.Instance?.Options?.IntroSkip?.TheIntroDbApiKey?.Trim();
+            var apiKey = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.TheIntroDb?.ApiKey?.Trim();
             var diskCachedResult = PluginDiskCache.GetJson<MarkerLookupResult>(
                 MarkerCacheScope,
                 query.CacheKey,
@@ -239,7 +239,7 @@ namespace MediaInfoKeeper.Services {
             var httpClient = Plugin.SharedHttpClient;
             if (httpClient == null) return SubmitSkipped("IHttpClient unavailable");
 
-            var apiKey = Plugin.Instance?.Options?.IntroSkip?.TheIntroDbApiKey?.Trim();
+            var apiKey = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.TheIntroDb?.ApiKey?.Trim();
             if (string.IsNullOrWhiteSpace(apiKey)) return SubmitSkipped("missing api key");
 
             var apiUrl = BuildApiUrl("submit");
@@ -547,7 +547,7 @@ namespace MediaInfoKeeper.Services {
         }
 
         private static string BuildApiUrl(string endpoint) {
-            var configuredBaseUrl = Plugin.Instance?.Options?.IntroSkip?.TheIntroDbBaseUrl;
+            var configuredBaseUrl = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.TheIntroDb?.BaseUrl;
             return (string.IsNullOrWhiteSpace(configuredBaseUrl) ? DefaultBaseUrl : configuredBaseUrl.Trim())
                 .TrimEnd('/') + "/" + endpoint;
         }

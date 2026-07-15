@@ -110,7 +110,7 @@ namespace MediaInfoKeeper.Services {
             CancellationToken cancellationToken) {
             if (!TryBuildIdentity(episode, out var identity, out var reason)) return SubmitSkipped(reason);
 
-            var apiKey = Plugin.Instance?.Options?.IntroSkip?.IntroDbApiKey?.Trim();
+            var apiKey = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.IntroDb?.ApiKey?.Trim();
             if (string.IsNullOrWhiteSpace(apiKey)) return SubmitSkipped("missing api key");
 
             var chapters = Plugin.IntroSkipChapterApi.GetChapters(episode);
@@ -350,7 +350,7 @@ namespace MediaInfoKeeper.Services {
         }
 
         private static string BuildApiUrl(string endpoint) {
-            var configuredBaseUrl = Plugin.Instance?.Options?.IntroSkip?.IntroDbBaseUrl;
+            var configuredBaseUrl = Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.IntroDb?.BaseUrl;
             return (string.IsNullOrWhiteSpace(configuredBaseUrl) ? DefaultBaseUrl : configuredBaseUrl.Trim())
                 .TrimEnd('/') + "/" + endpoint;
         }

@@ -35,22 +35,6 @@ namespace MediaInfoKeeper.Options {
         [Description("阻止 Emby/ffprobe 写入Chapter 01/02 等无效章节。")]
         public bool FilterPlainChapters { get; set; } = true;
 
-        [DisplayName("TheIntroDB API 地址")]
-        [Description("TheIntroDB v3 API 地址。是否启用 TheIntroDB Provider 请在媒体库的元数据抓取器中控制。")]
-        public string TheIntroDbBaseUrl { get; set; } = "https://api.theintrodb.org/v3";
-
-        [DisplayName("TheIntroDB API Key")]
-        [Description("可选。填写后可提高 TheIntroDB 每日请求额度。共享必填。")]
-        public string TheIntroDbApiKey { get; set; } = string.Empty;
-
-        [DisplayName("IntroDB API 地址")]
-        [Description("IntroDB API 地址。是否启用 IntroDB Provider 请在电视剧媒体库的元数据抓取器中控制。")]
-        public string IntroDbBaseUrl { get; set; } = "https://api.introdb.app";
-
-        [DisplayName("IntroDB API Key")]
-        [Description("查询无需填写；共享片头片尾到 IntroDB 时必填。")]
-        public string IntroDbApiKey { get; set; } = string.Empty;
-
         [DisplayName("启用片头打标")]
         [Description("根据播放行为自动标记片头。")]
         public bool EnableIntroMarker { get; set; } = false;
@@ -175,14 +159,6 @@ namespace MediaInfoKeeper.Options {
                 nameof(FilterPlainChapters),
                 nameof(IntroDetectionFingerprintMinutes),
                 nameof(IntroDetectionMaxConcurrentCount));
-
-            AddGroup("TheIntroDB", "两个 Provider 同时启用时，按媒体库中的元数据抓取器顺序优先，未命中时向后回退。",
-                nameof(TheIntroDbBaseUrl),
-                nameof(TheIntroDbApiKey));
-
-            AddGroup("IntroDB", "两个 Provider 同时启用时，按媒体库中的元数据抓取器顺序优先，未命中时向后回退。",
-                nameof(IntroDbBaseUrl),
-                nameof(IntroDbApiKey));
 
             AddGroup("播放行为打标",
                 "最短剧情起始前: 优先视为前置剧情保护区；最短剧情起始到最大片头时长: 片头更可信；" +
