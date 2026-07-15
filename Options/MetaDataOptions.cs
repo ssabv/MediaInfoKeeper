@@ -81,6 +81,10 @@ namespace MediaInfoKeeper.Options {
         [SelectItemsSource(nameof(TvdbFallbackLanguageList))]
         public string TvdbFallbackLanguages { get; set; } = "zhtw,yue";
 
+        [DisplayName("启用 Bangumi 角色中文名增强")]
+        [Description("开启后从 Bangumi 获取角色中文名。国漫用中文搜索、日漫用日文搜索、美漫用英文搜索，首次搜索无结果时降级为英文。")]
+        public bool EnableBangumiCharacters { get; set; } = false;
+
         public void Initialize() {
             EnsureScraperEditors();
             ScraperEntries = new GenericItemList(new[] {

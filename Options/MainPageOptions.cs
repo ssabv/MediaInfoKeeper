@@ -76,6 +76,7 @@ namespace MediaInfoKeeper.Options {
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.ScanExternalFiles ??= new ScanExternalFilesTaskEditorOptions();
             ScheduledTasksEditor.UpdatePlugin ??= new UpdatePluginTaskEditorOptions();
+            ScheduledTasksEditor.BangumiCharacter ??= new BangumiCharacterTaskEditorOptions();
         }
 
         public void PrepareScheduledTaskEditorForUi() {
@@ -88,6 +89,7 @@ namespace MediaInfoKeeper.Options {
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.ScanExternalFiles.LibraryList = LibraryList;
+            ScheduledTasksEditor.BangumiCharacter.LibraryList = LibraryList;
             ScheduledTasksEditor.UpdatePlugin.Initialize();
 
             ScheduledTaskEntries = BuildScheduledTaskEntries();
@@ -168,6 +170,7 @@ namespace MediaInfoKeeper.Options {
         private GenericItemList BuildScheduledTaskEntries() {
             return new GenericItemList(new[] {
                 CreateScheduledTaskEntry("更新插件", "main.scheduled.updatePlugin", "main.scheduled.run.updatePlugin"),
+                CreateScheduledTaskEntry("Bangumi 角色增强", "main.scheduled.bangumiCharacter", "main.scheduled.run.bangumiCharacter"),
                 CreateScheduledTaskEntry("刷新媒体元数据", "main.scheduled.refreshRecentMetadata",
                     "main.scheduled.run.refreshRecentMetadata"),
                 CreateScheduledTaskEntry("扫描片头", "main.scheduled.scanRecentIntro",
@@ -391,6 +394,18 @@ namespace MediaInfoKeeper.Options {
             public string ScanExternalFilesLibraries { get; set; } = string.Empty;
         }
 
+        public class BangumiCharacterTaskEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [Browsable(false)] public IEnumerable<EditorSelectOption> LibraryList { get; set; }
+
+            [DisplayName("媒体库范围")]
+            [Description("留空表示全部媒体库。")]
+            [EditMultilSelect]
+            [SelectItemsSource(nameof(LibraryList))]
+            public string BangumiCharacterLibraries { get; set; } = string.Empty;
+        }
+
         public class UpdatePluginTaskEditorOptions : EditableOptionsBase {
             public override string EditorTitle => string.Empty;
 
@@ -504,6 +519,9 @@ namespace MediaInfoKeeper.Options {
                 new();
 
             [DisplayName("更新插件")] public UpdatePluginTaskEditorOptions UpdatePlugin { get; set; } = new();
+
+            [DisplayName("Bangumi 角色增强")]
+            public BangumiCharacterTaskEditorOptions BangumiCharacter { get; set; } = new();
         }
     }
 }
