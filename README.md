@@ -3,8 +3,8 @@
   <img src="Resources/ThumbImage.png" alt="MediaInfoKeeper" width="320" />
 </p>
 
-<h3 align="center">MediaInfoKeeper</h3>
-<p align="center"><b>Bangumi 角色中文名增强版</b></p>
+<h3 align="center">Emby Strm 插件，支持Strm直链，媒体信息持久化、元数据刷新</h3>
+<p align="center"><b>Bangumi 角色中文名增强</b></p>
 
 <p align="center">
   <a href="https://github.com/ssabv/MediaInfoKeeper/releases">
