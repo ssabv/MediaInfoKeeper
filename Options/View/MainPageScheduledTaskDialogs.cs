@@ -164,4 +164,24 @@ namespace MediaInfoKeeper.Options.View
             }
         }
     }
+
+    internal sealed class BangumiCharacterTaskDialogView : MainPageTaskDialogView<MainPageOptions.BangumiCharacterTaskEditorOptions>
+    {
+        private readonly MainPageOptions owner;
+
+        public BangumiCharacterTaskDialogView(string pluginId, MainPageOptions owner)
+            : base(pluginId, owner?.ScheduledTasksEditor?.BangumiCharacter ?? new MainPageOptions.BangumiCharacterTaskEditorOptions(), "Bangumi 角色增强")
+        {
+            this.owner = owner;
+        }
+
+        public override async Task OnOkCommand(string providerId, string commandId, string data)
+        {
+            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
+            if (this.owner?.ScheduledTasksEditor != null)
+            {
+                this.owner.ScheduledTasksEditor.BangumiCharacter = this.Options;
+            }
+        }
+    }
 }

@@ -31,6 +31,8 @@ namespace MediaInfoKeeper.Options.View
         private const string ScanExternalFilesRunCommandId = "main.scheduled.run.scanExternalFiles";
         private const string RestartEmbyDialogCommandId = "main.scheduled.restartEmby";
         private const string RestartEmbyRunCommandId = "main.scheduled.run.restartEmby";
+        private const string BangumiCharacterDialogCommandId = "main.scheduled.bangumiCharacter";
+        private const string BangumiCharacterRunCommandId = "main.scheduled.run.bangumiCharacter";
 
         private readonly IApplicationHost applicationHost;
         private readonly PluginInfo pluginInfo;
@@ -89,6 +91,11 @@ namespace MediaInfoKeeper.Options.View
                 return Task.FromResult<IPluginUIView>(new ScanExternalFilesTaskDialogView(this.pluginInfo.Id, this.Options));
             }
 
+            if (string.Equals(commandId, BangumiCharacterDialogCommandId, StringComparison.Ordinal))
+            {
+                return Task.FromResult<IPluginUIView>(new BangumiCharacterTaskDialogView(this.pluginInfo.Id, this.Options));
+            }
+
             if (string.Equals(commandId, RestartEmbyDialogCommandId, StringComparison.Ordinal))
             {
                 return Task.FromResult<IPluginUIView>(this);
@@ -132,6 +139,11 @@ namespace MediaInfoKeeper.Options.View
             if (string.Equals(commandId, ScanExternalFilesRunCommandId, StringComparison.Ordinal))
             {
                 return this.RunScheduledTaskAsync<ScanExternalFilesTask>();
+            }
+
+            if (string.Equals(commandId, BangumiCharacterRunCommandId, StringComparison.Ordinal))
+            {
+                return this.RunScheduledTaskAsync<BangumiCharacterRefreshTask>();
             }
 
             if (string.Equals(commandId, RestartEmbyRunCommandId, StringComparison.Ordinal))

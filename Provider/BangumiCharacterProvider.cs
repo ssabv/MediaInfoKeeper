@@ -188,37 +188,43 @@ namespace MediaInfoKeeper.Provider
                     originalLanguage = "ja";
 
                 int? subjectId = null;
-                if (!string.IsNullOrWhiteSpace(englishTitle))
-                {
-                    logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
-                    subjectId = await SearchBangumiAsync(englishTitle);
-                }
 
                 if (originalLanguage == "zh")
                 {
                     var cnTitle = item.Name;
-                    if (!string.IsNullOrWhiteSpace(cnTitle) && cnTitle != englishTitle)
+                    if (!string.IsNullOrWhiteSpace(cnTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 国漫中文标题搜索, keyword={0}", cnTitle);
-                        var cnSubjectId = await SearchBangumiAsync(cnTitle);
-                        if (cnSubjectId.HasValue)
-                        {
-                            logger.Debug("Bangumi 角色增强: 中文搜索命中 id={0}, 替换英文搜索 id={1}", cnSubjectId.Value, subjectId);
-                            subjectId = cnSubjectId;
-                        }
+                        subjectId = await SearchBangumiAsync(cnTitle);
+                    }
+                }
+                else if (originalLanguage == "ja")
+                {
+                    var japTitle = GetJapaneseTitle(item);
+                    if (!string.IsNullOrWhiteSpace(japTitle))
+                    {
+                        logger.Debug("Bangumi 角色增强: 日漫日文标题搜索, keyword={0}", japTitle);
+                        subjectId = await SearchBangumiAsync(japTitle);
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(englishTitle))
+                    {
+                        logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
+                        subjectId = await SearchBangumiAsync(englishTitle);
                     }
                 }
 
-                if (!subjectId.HasValue)
+                if (!subjectId.HasValue && !string.IsNullOrWhiteSpace(englishTitle))
                 {
-                    var japTitle = GetJapaneseTitle(item);
-                    logger.Info("Bangumi 角色增强: 英文标题搜索无结果, 降级使用日文标题={0}", japTitle);
-                    subjectId = await SearchBangumiAsync(japTitle);
+                    logger.Info("Bangumi 角色增强: 源语言搜索无结果, 降级使用英文标题={0}", englishTitle);
+                    subjectId = await SearchBangumiAsync(englishTitle);
                 }
 
                 if (!subjectId.HasValue)
                 {
-                    logger.Info("Bangumi 角色增强: 搜索无结果, enTitle={0}", englishTitle ?? "(null)");
+                    logger.Info("Bangumi 角色增强: 搜索无结果");
                     return ItemUpdateType.None;
                 }
                 logger.Debug("Bangumi 角色增强: 匹配科目 id={0}", subjectId.Value);
