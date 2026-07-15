@@ -56,7 +56,7 @@ namespace MediaInfoKeeper.Services {
             if (lookupInfo == null) return null;
 
             var context = BuildLookupContext(lookupInfo);
-            if (context == null || string.IsNullOrWhiteSpace(context.DoubanSubjectId) || context.FromCache) return null;
+            if (context == null || string.IsNullOrWhiteSpace(context.DoubanSubjectId)) return null;
 
             return new DoubanMetadataPayload {
                 DoubanSubjectId = context.DoubanSubjectId
@@ -137,7 +137,7 @@ namespace MediaInfoKeeper.Services {
                 return null;
             }
 
-            var subjectId = ResolveDoubanSubjectId(lookupItem, subjectType);
+            var subjectId = NormalizeDoubanSubjectId(lookupItem.GetProviderId(DoubanExternalId.StaticName));
             if (string.IsNullOrWhiteSpace(subjectId)) return null;
 
             return new MediaLookupContext {
@@ -180,27 +180,6 @@ namespace MediaInfoKeeper.Services {
                 CacheKey = subjectType + ":" + subjectId,
                 FromCache = fromCache
             };
-        }
-
-        private static string ResolveDoubanSubjectId(BaseItem item, string subjectType) {
-            var providerId = GetProviderId(item, "Douban", "douban", "DoubanId", "doubanid");
-            if (!string.IsNullOrWhiteSpace(providerId)) return NormalizeDoubanSubjectId(providerId);
-
-            var imdbId = item.GetProviderId(MetadataProviders.Imdb);
-            if (!string.IsNullOrWhiteSpace(imdbId)) {
-                var imdbLookup = GetDoubanSubjectFromImdb(imdbId);
-                if (!string.IsNullOrWhiteSpace(imdbLookup?.SubjectId)) {
-                    if (!imdbLookup.FromCache) PersistDoubanSubjectId(item, imdbLookup.SubjectId);
-
-                    return imdbLookup.SubjectId;
-                }
-            }
-
-            var searchResult = SearchDoubanSubject(item, subjectType);
-            if (!string.IsNullOrWhiteSpace(searchResult?.SubjectId) && !searchResult.FromCache)
-                PersistDoubanSubjectId(item, searchResult.SubjectId);
-
-            return searchResult?.SubjectId;
         }
 
         private static DoubanSubjectResolution GetDoubanSubjectFromImdb(string imdbId) {
@@ -370,32 +349,6 @@ namespace MediaInfoKeeper.Services {
                 key,
                 new DoubanSubjectCacheEntry { SubjectId = value },
                 JsonOptions);
-        }
-
-        private static void PersistDoubanSubjectId(BaseItem item, string subjectId) {
-            var normalizedSubjectId = NormalizeDoubanSubjectId(subjectId);
-            if (item == null || string.IsNullOrWhiteSpace(normalizedSubjectId)) return;
-
-            var existing = GetProviderId(item, DoubanExternalId.StaticName, "douban", "DoubanId", "doubanid");
-            if (string.Equals(NormalizeDoubanSubjectId(existing), normalizedSubjectId, StringComparison.Ordinal)) return;
-
-            try {
-                item.SetProviderId(DoubanExternalId.StaticName, normalizedSubjectId);
-                Plugin.Instance?.ItemRepository?.SaveItem(item, CancellationTokenUtility.None);
-                Plugin.SharedLogger?.Info(
-                    "DoubanService 豆瓣链接写入: {0} ({1}) doubanid={2}",
-                    item.FileName ?? string.Empty,
-                    item.ProductionYear,
-                    normalizedSubjectId);
-            }
-            catch (Exception ex) {
-                Plugin.SharedLogger?.Info(
-                    "DoubanService 豆瓣链接写入失败: {0} ({1}) doubanid={2}, msg={3}",
-                    item?.FileName ?? string.Empty,
-                    item?.ProductionYear,
-                    normalizedSubjectId,
-                    ex.Message);
-            }
         }
 
         private static string GetProviderId(IHasProviderIds item, params string[] keys) {

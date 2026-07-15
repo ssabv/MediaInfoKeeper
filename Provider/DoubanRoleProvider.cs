@@ -7,6 +7,8 @@ using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
+using MediaInfoKeeper.External;
 using MediaInfoKeeper.Services;
 
 namespace MediaInfoKeeper.Provider {
@@ -17,35 +19,64 @@ namespace MediaInfoKeeper.Provider {
         IHasOrder {
         public const string ProviderName = "DoubanRole";
 
+        private static readonly DoubanMetadataProvider MetadataProvider = new();
+
         public string Name => ProviderName;
 
-        public Task<ItemUpdateType> FetchAsync(
+        public async Task<ItemUpdateType> FetchAsync(
             MetadataResult<Movie> itemResult,
             MetadataRefreshOptions options,
             LibraryOptions libraryOptions,
             CancellationToken cancellationToken) {
-            return Task.FromResult(Enhance(itemResult.Item, itemResult.People));
+            var item = itemResult.Item;
+            if (!ShouldEnhance(item, itemResult.People, libraryOptions)) return ItemUpdateType.None;
+
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(item.GetProviderId(DoubanExternalId.StaticName))) {
+                var metadataResult = await MetadataProvider.GetMetadata(item.GetLookupInfo(libraryOptions), cancellationToken);
+                var subjectId = metadataResult.Item.GetProviderId(DoubanExternalId.StaticName);
+                if (!string.IsNullOrWhiteSpace(subjectId)) {
+                    item.SetProviderId(DoubanExternalId.StaticName, subjectId);
+                    changed = true;
+                }
+            }
+
+            return Enhance(item, itemResult.People, changed);
         }
 
-        public Task<ItemUpdateType> FetchAsync(
+        public async Task<ItemUpdateType> FetchAsync(
             MetadataResult<Series> itemResult,
             MetadataRefreshOptions options,
             LibraryOptions libraryOptions,
             CancellationToken cancellationToken) {
-            return Task.FromResult(Enhance(itemResult.Item, itemResult.People));
+            var item = itemResult.Item;
+            if (!ShouldEnhance(item, itemResult.People, libraryOptions)) return ItemUpdateType.None;
+
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(item.GetProviderId(DoubanExternalId.StaticName))) {
+                var metadataResult = await MetadataProvider.GetMetadata(item.GetLookupInfo(libraryOptions), cancellationToken);
+                var subjectId = metadataResult.Item.GetProviderId(DoubanExternalId.StaticName);
+                if (!string.IsNullOrWhiteSpace(subjectId)) {
+                    item.SetProviderId(DoubanExternalId.StaticName, subjectId);
+                    changed = true;
+                }
+            }
+
+            return Enhance(item, itemResult.People, changed);
         }
 
         public int Order => int.MaxValue;
 
-        private static ItemUpdateType Enhance(BaseItem item, List<PersonInfo> people) {
-            if (item == null || people == null || people.Count == 0) return ItemUpdateType.None;
+        private static bool ShouldEnhance(BaseItem item, List<PersonInfo> people, LibraryOptions libraryOptions) {
+            if (item == null || people == null || people.Count == 0) return false;
 
-            var libraryOptions = Plugin.LibraryManager?.GetLibraryOptions(item);
-            if (libraryOptions == null || !item.IsMetadataFetcherEnabled(libraryOptions, ProviderName)) return ItemUpdateType.None;
+            return libraryOptions != null && item.IsMetadataFetcherEnabled(libraryOptions, ProviderName);
+        }
 
-            return DoubanService.EnhancePeopleRole(item, people)
-                ? ItemUpdateType.MetadataImport
-                : ItemUpdateType.None;
+        private static ItemUpdateType Enhance(BaseItem item, List<PersonInfo> people, bool changed) {
+            if (DoubanService.EnhancePeopleRole(item, people)) changed = true;
+
+            return changed ? ItemUpdateType.MetadataImport : ItemUpdateType.None;
         }
     }
 }

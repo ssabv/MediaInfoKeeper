@@ -5,25 +5,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
-using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Tasks;
 using MediaInfoKeeper.Common;
-using MediaInfoKeeper.Provider;
 using MediaInfoKeeper.Services;
 using static MediaInfoKeeper.Options.MainPageOptions;
 
 namespace MediaInfoKeeper.ScheduledTask {
     public class RefreshRecentMetadataTask : IScheduledTask {
-        private readonly ILibraryManager libraryManager;
-
         private readonly ILogger logger;
 
-        public RefreshRecentMetadataTask(ILogManager logManager, ILibraryManager libraryManager) {
+        public RefreshRecentMetadataTask(ILogManager logManager) {
             logger = logManager.GetLogger(Plugin.PluginName);
-            this.libraryManager = libraryManager;
         }
 
         public string Key => "MediaInfoKeeperRefreshRecentMetadataTask";
@@ -49,15 +44,12 @@ namespace MediaInfoKeeper.ScheduledTask {
             var replaceImages = ShouldReplaceImages();
             var replaceThumbnails = ShouldReplaceThumbnails();
             var allowFfProcess = ShouldAllowFfProcess();
-            var metadataRefreshTargets = new List<RoleRefreshTarget>();
-            var completedSeriesTargets = new List<RoleRefreshTarget>();
+            var completedSeriesTargets = new List<SeriesRefreshTarget>();
             if (Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata
                 .RefreshCompletedSeriesEpisodes)
                 completedSeriesTargets = CollectSeriesRefreshTargets(items);
-            else
-                metadataRefreshTargets = CollectMetadataRefreshItemIds(items);
 
-            var totalWork = total + metadataRefreshTargets.Count + completedSeriesTargets.Count;
+            var totalWork = total + completedSeriesTargets.Count;
             logger.Info(
                 $"计划任务条目数{total}，元数据覆盖{replaceMetadata}，图片覆盖{replaceImages}，视频缩略图覆盖{replaceThumbnails}，允许 ffprocess{allowFfProcess}，完整刷新已完结剧集{completedSeriesTargets.Count > 0}");
 
@@ -124,22 +116,6 @@ namespace MediaInfoKeeper.ScheduledTask {
                 }
             }
 
-            if (metadataRefreshTargets.Count > 0) logger.Info($"计划任务刷新豆瓣角色中文化 {metadataRefreshTargets.Count} 个 Series");
-
-            foreach (var target in metadataRefreshTargets) {
-                if (cancellationToken.IsCancellationRequested) {
-                    logger.Info($"计划任务已取消 itemid={target.ItemId}");
-                    break;
-                }
-
-                var roleOptions =
-                    BuildRefreshOptions(true, false, false);
-                roleOptions.Recursive = false;
-                _ = MetaDataRunner.RefreshMetaDataAsync(target.ItemId, roleOptions, CancellationToken.None,
-                    RefreshPriority.High, allowFfProcess: allowFfProcess);
-                ReportProgress(totalWork, progress, ++submitted);
-            }
-
             if (cancellationToken.IsCancellationRequested) {
                 logger.Info("最近条目刷新元数据计划任务已取消");
                 return;
@@ -202,33 +178,8 @@ namespace MediaInfoKeeper.ScheduledTask {
             };
         }
 
-        private List<RoleRefreshTarget> CollectMetadataRefreshItemIds(IEnumerable<BaseItem> items) {
-            var result = new List<RoleRefreshTarget>();
-            var seen = new HashSet<long>();
-
-            foreach (var item in items) {
-                BaseItem refreshItem = item switch {
-                    Series series when series.InternalId > 0 => series,
-                    Season season when season.Series?.InternalId > 0 => season.Series,
-                    Episode episode when episode.Series?.InternalId > 0 => episode.Series,
-                    _ => null
-                };
-
-                if (!IsDoubanRoleEnabled(refreshItem)) continue;
-
-                if (seen.Add(refreshItem.InternalId))
-                    result.Add(new RoleRefreshTarget {
-                        ItemId = refreshItem.InternalId,
-                        Name = refreshItem.Name,
-                        ProductionYear = refreshItem.ProductionYear
-                    });
-            }
-
-            return result;
-        }
-
-        private List<RoleRefreshTarget> CollectSeriesRefreshTargets(IEnumerable<BaseItem> items) {
-            var result = new List<RoleRefreshTarget>();
+        private List<SeriesRefreshTarget> CollectSeriesRefreshTargets(IEnumerable<BaseItem> items) {
+            var result = new List<SeriesRefreshTarget>();
             var seen = new HashSet<long>();
 
             foreach (var item in items) {
@@ -242,7 +193,7 @@ namespace MediaInfoKeeper.ScheduledTask {
                 if (series == null || series.InternalId <= 0) continue;
 
                 if (seen.Add(series.InternalId))
-                    result.Add(new RoleRefreshTarget {
+                    result.Add(new SeriesRefreshTarget {
                         ItemId = series.InternalId,
                         Name = series.Name,
                         ProductionYear = series.ProductionYear
@@ -250,14 +201,6 @@ namespace MediaInfoKeeper.ScheduledTask {
             }
 
             return result;
-        }
-
-        private bool IsDoubanRoleEnabled(BaseItem item) {
-            if (item == null) return false;
-
-            var libraryOptions = libraryManager.GetLibraryOptions(item);
-            return libraryOptions != null &&
-                   item.IsMetadataFetcherEnabled(libraryOptions, DoubanRoleProvider.ProviderName);
         }
 
         private static string FormatItemLabel(string name, int? productionYear) {
@@ -288,7 +231,7 @@ namespace MediaInfoKeeper.ScheduledTask {
             return Plugin.Instance.Options.MainPage.ScheduledTasksEditor.RefreshRecentMetadata.AllowFfProcess;
         }
 
-        private sealed class RoleRefreshTarget {
+        private sealed class SeriesRefreshTarget {
             public long ItemId { get; set; }
 
             public string Name { get; set; }
