@@ -32,7 +32,7 @@ namespace MediaInfoKeeper.Services {
                 identity.CacheKey,
                 SuccessCacheDuration,
                 JsonOptions);
-            if (cachedResult != null) return cachedResult;
+            if (cachedResult != null) return NotFound("cache hit");
 
             var httpClient = Plugin.SharedHttpClient;
             if (httpClient == null) return NotFound("IHttpClient unavailable");
