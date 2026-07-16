@@ -69,12 +69,9 @@ namespace MediaInfoKeeper.Options {
         public void EnsureScheduledTaskEditors() {
             ScheduledTasksEditor ??= new ScheduledTaskEditorOptions();
             ScheduledTasksEditor.RefreshRecentMetadata ??= new RefreshRecentMetadataTaskEditorOptions();
-            ScheduledTasksEditor.ScanRecentIntro ??= new ScanRecentIntroTaskEditorOptions();
             ScheduledTasksEditor.SubmitTheIntroDbMarkers ??= new SubmitTheIntroDbMarkersTaskEditorOptions();
-            ScheduledTasksEditor.ExtractRecentMediaInfo ??= new ExtractRecentMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
-            ScheduledTasksEditor.ScanExternalFiles ??= new ScanExternalFilesTaskEditorOptions();
             ScheduledTasksEditor.UpdatePlugin ??= new UpdatePluginTaskEditorOptions();
         }
 
@@ -82,12 +79,9 @@ namespace MediaInfoKeeper.Options {
             EnsureScheduledTaskEditors();
             ScheduledTasksEditor.LibraryList = LibraryList;
             ScheduledTasksEditor.RefreshRecentMetadata.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScanRecentIntro.LibraryList = LibraryList;
             ScheduledTasksEditor.SubmitTheIntroDbMarkers.LibraryList = LibraryList;
-            ScheduledTasksEditor.ExtractRecentMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
-            ScheduledTasksEditor.ScanExternalFiles.LibraryList = LibraryList;
             ScheduledTasksEditor.UpdatePlugin.Initialize();
 
             ScheduledTaskEntries = BuildScheduledTaskEntries();
@@ -170,34 +164,32 @@ namespace MediaInfoKeeper.Options {
                 CreateScheduledTaskEntry("更新插件", "main.scheduled.updatePlugin", "main.scheduled.run.updatePlugin"),
                 CreateScheduledTaskEntry("刷新媒体元数据", "main.scheduled.refreshRecentMetadata",
                     "main.scheduled.run.refreshRecentMetadata"),
-                CreateScheduledTaskEntry("扫描片头", "main.scheduled.scanRecentIntro",
-                    "main.scheduled.run.scanRecentIntro"),
-                CreateScheduledTaskEntry("提取媒体信息", "main.scheduled.extractRecentMediaInfo",
-                    "main.scheduled.run.extractRecentMediaInfo"),
                 CreateScheduledTaskEntry("备份媒体信息", "main.scheduled.exportExistingMediaInfo",
                     "main.scheduled.run.exportExistingMediaInfo"),
                 CreateScheduledTaskEntry("恢复媒体信息", "main.scheduled.restoreMediaInfo",
                     "main.scheduled.run.restoreMediaInfo"),
-                CreateScheduledTaskEntry("扫描外挂文件", "main.scheduled.scanExternalFiles",
-                    "main.scheduled.run.scanExternalFiles"),
                 CreateScheduledTaskEntry("共享片头片尾", "main.scheduled.submitTheIntroDbMarkers",
                     "main.scheduled.run.submitTheIntroDbMarkers"),
-                CreateScheduledTaskEntry("重启Emby", "main.scheduled.restartEmby", "main.scheduled.run.restartEmby")
+                CreateScheduledTaskEntry("重启Emby", null, "main.scheduled.run.restartEmby")
             });
         }
 
         private static GenericListItem CreateScheduledTaskEntry(string primaryText, string commandId, string runCommandId) {
-            return new GenericListItem {
+            var item = new GenericListItem {
                 PrimaryText = primaryText,
-                Button1 = new ButtonItem("执行") {
+                Button2 = new ButtonItem("执行") {
                     CommandId = runCommandId,
                     Icon = IconNames.play_arrow
-                },
-                Button2 = new ButtonItem("配置") {
-                    CommandId = commandId,
-                    Icon = IconNames.settings
                 }
             };
+
+            if (!string.IsNullOrEmpty(commandId))
+                item.Button1 = new ButtonItem("配置") {
+                    CommandId = commandId,
+                    Icon = IconNames.settings
+                };
+
+            return item;
         }
 
         public class RefreshRecentMetadataTaskEditorOptions : EditableOptionsBase {
@@ -303,23 +295,6 @@ namespace MediaInfoKeeper.Options {
             }
         }
 
-        public class ScanRecentIntroTaskEditorOptions : EditableOptionsBase {
-            public override string EditorTitle => string.Empty;
-
-            [DisplayName("扫描最近条目数量")]
-            [MinValue(1)]
-            [MaxValue(100000000)]
-            public int ScanRecentIntroLimit { get; set; } = 100;
-
-            [Browsable(false)] public IEnumerable<EditorSelectOption> LibraryList { get; set; }
-
-            [DisplayName("媒体库范围")]
-            [Description("留空表示全部。")]
-            [EditMultilSelect]
-            [SelectItemsSource(nameof(LibraryList))]
-            public string ScanRecentIntroLibraries { get; set; } = string.Empty;
-        }
-
         public class SubmitTheIntroDbMarkersTaskEditorOptions : EditableOptionsBase {
             public override string EditorTitle => string.Empty;
 
@@ -336,23 +311,6 @@ namespace MediaInfoKeeper.Options {
             [EditMultilSelect]
             [SelectItemsSource(nameof(LibraryList))]
             public string SubmitTheIntroDbMarkersLibraries { get; set; } = string.Empty;
-        }
-
-        public class ExtractRecentMediaInfoTaskEditorOptions : EditableOptionsBase {
-            public override string EditorTitle => string.Empty;
-
-            [DisplayName("提取最近条目数量")]
-            [MinValue(1)]
-            [MaxValue(100000000)]
-            public int ExtractRecentMediaInfoLimit { get; set; } = 100;
-
-            [Browsable(false)] public IEnumerable<EditorSelectOption> LibraryList { get; set; }
-
-            [DisplayName("媒体库范围")]
-            [Description("留空表示全部。")]
-            [EditMultilSelect]
-            [SelectItemsSource(nameof(LibraryList))]
-            public string ExtractRecentMediaInfoLibraries { get; set; } = string.Empty;
         }
 
         public class ExportExistingMediaInfoTaskEditorOptions : EditableOptionsBase {
@@ -377,18 +335,6 @@ namespace MediaInfoKeeper.Options {
             [EditMultilSelect]
             [SelectItemsSource(nameof(LibraryList))]
             public string RestoreMediaInfoLibraries { get; set; } = string.Empty;
-        }
-
-        public class ScanExternalFilesTaskEditorOptions : EditableOptionsBase {
-            public override string EditorTitle => string.Empty;
-
-            [Browsable(false)] public IEnumerable<EditorSelectOption> LibraryList { get; set; }
-
-            [DisplayName("扫描外挂文件范围")]
-            [Description("留空表示全部。")]
-            [EditMultilSelect]
-            [SelectItemsSource(nameof(LibraryList))]
-            public string ScanExternalFilesLibraries { get; set; } = string.Empty;
         }
 
         public class UpdatePluginTaskEditorOptions : EditableOptionsBase {
@@ -479,16 +425,8 @@ namespace MediaInfoKeeper.Options {
             public RefreshRecentMetadataTaskEditorOptions RefreshRecentMetadata { get; set; } =
                 new();
 
-            [DisplayName("扫描片头")]
-            public ScanRecentIntroTaskEditorOptions ScanRecentIntro { get; set; } =
-                new();
-
             [DisplayName("共享片头片尾")]
             public SubmitTheIntroDbMarkersTaskEditorOptions SubmitTheIntroDbMarkers { get; set; } =
-                new();
-
-            [DisplayName("提取媒体信息")]
-            public ExtractRecentMediaInfoTaskEditorOptions ExtractRecentMediaInfo { get; set; } =
                 new();
 
             [DisplayName("备份媒体信息")]
@@ -497,10 +435,6 @@ namespace MediaInfoKeeper.Options {
 
             [DisplayName("恢复媒体信息")]
             public RestoreMediaInfoTaskEditorOptions RestoreMediaInfo { get; set; } =
-                new();
-
-            [DisplayName("扫描外挂文件")]
-            public ScanExternalFilesTaskEditorOptions ScanExternalFiles { get; set; } =
                 new();
 
             [DisplayName("更新插件")] public UpdatePluginTaskEditorOptions UpdatePlugin { get; set; } = new();

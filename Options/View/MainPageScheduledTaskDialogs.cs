@@ -37,23 +37,6 @@ namespace MediaInfoKeeper.Options.View {
     }
 
     internal sealed class
-        ScanRecentIntroTaskDialogView : MainPageTaskDialogView<MainPageOptions.ScanRecentIntroTaskEditorOptions> {
-        private readonly MainPageOptions owner;
-
-        public ScanRecentIntroTaskDialogView(string pluginId, MainPageOptions owner)
-            : base(pluginId,
-                owner?.ScheduledTasksEditor?.ScanRecentIntro ?? new MainPageOptions.ScanRecentIntroTaskEditorOptions(),
-                "扫描片头") {
-            this.owner = owner;
-        }
-
-        public override async Task OnOkCommand(string providerId, string commandId, string data) {
-            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
-            if (owner?.ScheduledTasksEditor != null) owner.ScheduledTasksEditor.ScanRecentIntro = Options;
-        }
-    }
-
-    internal sealed class
         SubmitTheIntroDbMarkersTaskDialogView : MainPageTaskDialogView<
         MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions> {
         private readonly MainPageOptions owner;
@@ -68,24 +51,6 @@ namespace MediaInfoKeeper.Options.View {
         public override async Task OnOkCommand(string providerId, string commandId, string data) {
             await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
             if (owner?.ScheduledTasksEditor != null) owner.ScheduledTasksEditor.SubmitTheIntroDbMarkers = Options;
-        }
-    }
-
-    internal sealed class
-        ExtractRecentMediaInfoTaskDialogView : MainPageTaskDialogView<
-        MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions> {
-        private readonly MainPageOptions owner;
-
-        public ExtractRecentMediaInfoTaskDialogView(string pluginId, MainPageOptions owner)
-            : base(pluginId,
-                owner?.ScheduledTasksEditor?.ExtractRecentMediaInfo ??
-                new MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions(), "提取媒体信息") {
-            this.owner = owner;
-        }
-
-        public override async Task OnOkCommand(string providerId, string commandId, string data) {
-            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
-            if (owner?.ScheduledTasksEditor != null) owner.ScheduledTasksEditor.ExtractRecentMediaInfo = Options;
         }
     }
 
@@ -124,20 +89,4 @@ namespace MediaInfoKeeper.Options.View {
         }
     }
 
-    internal sealed class
-        ScanExternalFilesTaskDialogView : MainPageTaskDialogView<MainPageOptions.ScanExternalFilesTaskEditorOptions> {
-        private readonly MainPageOptions owner;
-
-        public ScanExternalFilesTaskDialogView(string pluginId, MainPageOptions owner)
-            : base(pluginId,
-                owner?.ScheduledTasksEditor?.ScanExternalFiles ??
-                new MainPageOptions.ScanExternalFilesTaskEditorOptions(), "扫描外挂文件") {
-            this.owner = owner;
-        }
-
-        public override async Task OnOkCommand(string providerId, string commandId, string data) {
-            await base.OnOkCommand(providerId, commandId, data).ConfigureAwait(false);
-            if (owner?.ScheduledTasksEditor != null) owner.ScheduledTasksEditor.ScanExternalFiles = Options;
-        }
-    }
 }

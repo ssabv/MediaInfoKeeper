@@ -857,6 +857,12 @@ define(['connectionManager', 'globalize', 'loading', 'toast', 'confirm'], functi
                         id: 'delete_media_info_persist',
                         icon: 'delete_forever'
                     });
+                    commands.push({name: getScanIntroCommandName(), id: 'scan_intro', icon: 'graphic_eq'});
+                    commands.push({
+                        name: getScanExternalFilesCommandName(),
+                        id: 'scan_external_files',
+                        icon: 'subtitles'
+                    });
                 }
 
                 if (!items.length) {

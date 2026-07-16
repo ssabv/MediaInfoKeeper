@@ -58,26 +58,12 @@ namespace MediaInfoKeeper.Options.Store {
             CopyValue(mainPage, refreshRecentMetadata, "RefreshCompletedSeriesEpisodes",
                 nameof(MainPageOptions.RefreshRecentMetadataTaskEditorOptions.RefreshCompletedSeriesEpisodes));
 
-            var scanRecentIntro = GetOrCreateObject(scheduledTasksEditor,
-                nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanRecentIntro));
-            CopyInt(mainPage, scanRecentIntro, "ScanRecentIntroLimit",
-                nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLimit));
-            CopyString(mainPage, scanRecentIntro, "ScanRecentIntroLibraries",
-                nameof(MainPageOptions.ScanRecentIntroTaskEditorOptions.ScanRecentIntroLibraries));
-
             var submitTheIntroDbMarkers = GetOrCreateObject(scheduledTasksEditor,
                 nameof(MainPageOptions.ScheduledTaskEditorOptions.SubmitTheIntroDbMarkers));
             CopyInt(mainPage, submitTheIntroDbMarkers, "SubmitTheIntroDbMarkersDays",
                 nameof(MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions.SubmitTheIntroDbMarkersDays));
             CopyString(mainPage, submitTheIntroDbMarkers, "SubmitTheIntroDbMarkersLibraries",
                 nameof(MainPageOptions.SubmitTheIntroDbMarkersTaskEditorOptions.SubmitTheIntroDbMarkersLibraries));
-
-            var extractRecentMediaInfo = GetOrCreateObject(scheduledTasksEditor,
-                nameof(MainPageOptions.ScheduledTaskEditorOptions.ExtractRecentMediaInfo));
-            CopyInt(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLimit",
-                nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLimit));
-            CopyString(mainPage, extractRecentMediaInfo, "ExtractRecentMediaInfoLibraries",
-                nameof(MainPageOptions.ExtractRecentMediaInfoTaskEditorOptions.ExtractRecentMediaInfoLibraries));
 
             var exportExistingMediaInfo = GetOrCreateObject(scheduledTasksEditor,
                 nameof(MainPageOptions.ScheduledTaskEditorOptions.ExportExistingMediaInfo));
@@ -88,11 +74,6 @@ namespace MediaInfoKeeper.Options.Store {
                 nameof(MainPageOptions.ScheduledTaskEditorOptions.RestoreMediaInfo));
             CopyString(mainPage, restoreMediaInfo, "RestoreMediaInfoLibraries",
                 nameof(MainPageOptions.RestoreMediaInfoTaskEditorOptions.RestoreMediaInfoLibraries));
-
-            var scanExternalFiles = GetOrCreateObject(scheduledTasksEditor,
-                nameof(MainPageOptions.ScheduledTaskEditorOptions.ScanExternalFiles));
-            CopyString(mainPage, scanExternalFiles, "ScanExternalFilesLibraries",
-                nameof(MainPageOptions.ScanExternalFilesTaskEditorOptions.ScanExternalFilesLibraries));
 
             var updatePlugin = GetOrCreateObject(scheduledTasksEditor,
                 nameof(MainPageOptions.ScheduledTaskEditorOptions.UpdatePlugin));

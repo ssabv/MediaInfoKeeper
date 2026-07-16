@@ -410,18 +410,11 @@ namespace MediaInfoKeeper {
             if (scheduledTasksEditor != null) {
                 scheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries =
                     NormalizeScopedLibraries(scheduledTasksEditor.RefreshRecentMetadata.RefreshRecentMetadataLibraries);
-                scheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries =
-                    NormalizeScopedLibraries(scheduledTasksEditor.ScanRecentIntro.ScanRecentIntroLibraries);
-                scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries =
-                    NormalizeScopedLibraries(
-                        scheduledTasksEditor.ExtractRecentMediaInfo.ExtractRecentMediaInfoLibraries);
                 scheduledTasksEditor.ExportExistingMediaInfo.ExportExistingMediaInfoLibraries =
                     NormalizeScopedLibraries(scheduledTasksEditor.ExportExistingMediaInfo
                         .ExportExistingMediaInfoLibraries);
                 scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries =
                     NormalizeScopedLibraries(scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries);
-                scheduledTasksEditor.ScanExternalFiles.ScanExternalFilesLibraries =
-                    NormalizeScopedLibraries(scheduledTasksEditor.ScanExternalFiles.ScanExternalFilesLibraries);
             }
 
             if (options.IntroSkip != null) options.IntroSkip.LibraryScope = NormalizeScopedLibraries(options.IntroSkip.LibraryScope);

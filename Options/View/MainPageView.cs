@@ -14,19 +14,12 @@ namespace MediaInfoKeeper.Options.View {
         private const string UpdatePluginRunCommandId = "main.scheduled.run.updatePlugin";
         private const string RefreshRecentMetadataDialogCommandId = "main.scheduled.refreshRecentMetadata";
         private const string RefreshRecentMetadataRunCommandId = "main.scheduled.run.refreshRecentMetadata";
-        private const string ScanRecentIntroDialogCommandId = "main.scheduled.scanRecentIntro";
-        private const string ScanRecentIntroRunCommandId = "main.scheduled.run.scanRecentIntro";
         private const string SubmitTheIntroDbMarkersDialogCommandId = "main.scheduled.submitTheIntroDbMarkers";
         private const string SubmitTheIntroDbMarkersRunCommandId = "main.scheduled.run.submitTheIntroDbMarkers";
-        private const string ExtractRecentMediaInfoDialogCommandId = "main.scheduled.extractRecentMediaInfo";
-        private const string ExtractRecentMediaInfoRunCommandId = "main.scheduled.run.extractRecentMediaInfo";
         private const string ExportExistingMediaInfoDialogCommandId = "main.scheduled.exportExistingMediaInfo";
         private const string ExportExistingMediaInfoRunCommandId = "main.scheduled.run.exportExistingMediaInfo";
         private const string RestoreMediaInfoDialogCommandId = "main.scheduled.restoreMediaInfo";
         private const string RestoreMediaInfoRunCommandId = "main.scheduled.run.restoreMediaInfo";
-        private const string ScanExternalFilesDialogCommandId = "main.scheduled.scanExternalFiles";
-        private const string ScanExternalFilesRunCommandId = "main.scheduled.run.scanExternalFiles";
-        private const string RestartEmbyDialogCommandId = "main.scheduled.restartEmby";
         private const string RestartEmbyRunCommandId = "main.scheduled.run.restartEmby";
 
         private readonly IApplicationHost applicationHost;
@@ -50,16 +43,9 @@ namespace MediaInfoKeeper.Options.View {
             if (string.Equals(commandId, RefreshRecentMetadataDialogCommandId, StringComparison.Ordinal))
                 return Task.FromResult<IPluginUIView>(new RefreshRecentMetadataTaskDialogView(pluginInfo.Id, Options));
 
-            if (string.Equals(commandId, ScanRecentIntroDialogCommandId, StringComparison.Ordinal))
-                return Task.FromResult<IPluginUIView>(new ScanRecentIntroTaskDialogView(pluginInfo.Id, Options));
-
             if (string.Equals(commandId, SubmitTheIntroDbMarkersDialogCommandId, StringComparison.Ordinal))
                 return Task.FromResult<IPluginUIView>(
                     new SubmitTheIntroDbMarkersTaskDialogView(pluginInfo.Id, Options));
-
-            if (string.Equals(commandId, ExtractRecentMediaInfoDialogCommandId, StringComparison.Ordinal))
-                return Task.FromResult<IPluginUIView>(
-                    new ExtractRecentMediaInfoTaskDialogView(pluginInfo.Id, Options));
 
             if (string.Equals(commandId, ExportExistingMediaInfoDialogCommandId, StringComparison.Ordinal))
                 return Task.FromResult<IPluginUIView>(
@@ -68,34 +54,20 @@ namespace MediaInfoKeeper.Options.View {
             if (string.Equals(commandId, RestoreMediaInfoDialogCommandId, StringComparison.Ordinal))
                 return Task.FromResult<IPluginUIView>(new RestoreMediaInfoTaskDialogView(pluginInfo.Id, Options));
 
-            if (string.Equals(commandId, ScanExternalFilesDialogCommandId, StringComparison.Ordinal))
-                return Task.FromResult<IPluginUIView>(new ScanExternalFilesTaskDialogView(pluginInfo.Id, Options));
-
-            if (string.Equals(commandId, RestartEmbyDialogCommandId, StringComparison.Ordinal)) return Task.FromResult<IPluginUIView>(this);
-
             if (string.Equals(commandId, UpdatePluginRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<UpdatePluginTask>();
 
             if (string.Equals(commandId, RefreshRecentMetadataRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<RefreshRecentMetadataTask>();
 
-            if (string.Equals(commandId, ScanRecentIntroRunCommandId, StringComparison.Ordinal))
-                return RunScheduledTaskAsync<ScanRecentIntroTask>();
-
             if (string.Equals(commandId, SubmitTheIntroDbMarkersRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<SubmitMarkersTask>();
-
-            if (string.Equals(commandId, ExtractRecentMediaInfoRunCommandId, StringComparison.Ordinal))
-                return RunScheduledTaskAsync<ExtractRecentMediaInfoTask>();
 
             if (string.Equals(commandId, ExportExistingMediaInfoRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<ExportExistingMediaInfoTask>();
 
             if (string.Equals(commandId, RestoreMediaInfoRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<RestoreMediaInfoTask>();
-
-            if (string.Equals(commandId, ScanExternalFilesRunCommandId, StringComparison.Ordinal))
-                return RunScheduledTaskAsync<ScanExternalFilesTask>();
 
             if (string.Equals(commandId, RestartEmbyRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<RestartEmbyTask>();
