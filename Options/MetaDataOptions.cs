@@ -87,7 +87,7 @@ namespace MediaInfoKeeper.Options {
                 CreateScraperEntry("IntroDB", "适用条目：集；刮削片头片尾标记。", "metadata.scraper.introDb"),
                 CreateScraperEntry("TheIntroDB", "适用条目：电影、集；刮削片头片尾标记。", "metadata.scraper.theIntroDb"),
                 CreateScraperEntry("Danmu", "适用条目：电影、集；刮削弹幕。", "metadata.scraper.danmu"),
-                CreateScraperEntry("DoubanRole", "适用条目：电影、剧集；使用豆瓣人物角色名。")
+                CreateScraperEntry("DoubanRole", "适用条目：电影、剧集、集；使用豆瓣人物角色名。")
             });
 
             FallbackLanguageList.Clear();

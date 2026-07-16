@@ -16,6 +16,7 @@ namespace MediaInfoKeeper.Provider {
     public sealed class DoubanMetadataProvider :
         IRemoteMetadataProvider<Movie, MovieInfo>,
         IRemoteMetadataProvider<Series, SeriesInfo>,
+        IRemoteMetadataProvider<Episode, EpisodeInfo>,
         IHasOrder {
         public int Order => 2;
         public string Name => DoubanRoleProvider.ProviderName;
@@ -38,6 +39,17 @@ namespace MediaInfoKeeper.Provider {
         }
 
         public Task<IEnumerable<RemoteSearchResult>> GetSearchResults(SeriesInfo searchInfo,
+            CancellationToken cancellationToken) {
+            return Task.FromResult<IEnumerable<RemoteSearchResult>>(Array.Empty<RemoteSearchResult>());
+        }
+
+        public Task<MetadataResult<Episode>> GetMetadata(EpisodeInfo info, CancellationToken cancellationToken) {
+            return Task.FromResult(new MetadataResult<Episode> {
+                Item = new Episode()
+            });
+        }
+
+        public Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo searchInfo,
             CancellationToken cancellationToken) {
             return Task.FromResult<IEnumerable<RemoteSearchResult>>(Array.Empty<RemoteSearchResult>());
         }

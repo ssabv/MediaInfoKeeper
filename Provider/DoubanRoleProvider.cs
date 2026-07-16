@@ -15,6 +15,7 @@ namespace MediaInfoKeeper.Provider {
     public sealed class DoubanRoleProvider :
         ICustomMetadataProvider<Movie>,
         ICustomMetadataProvider<Series>,
+        ICustomMetadataProvider<Episode>,
         IForcedProvider,
         IHasOrder {
         public const string ProviderName = "DoubanRole";
@@ -65,6 +66,19 @@ namespace MediaInfoKeeper.Provider {
             return Enhance(item, itemResult.People, changed);
         }
 
+        public Task<ItemUpdateType> FetchAsync(
+            MetadataResult<Episode> itemResult,
+            MetadataRefreshOptions options,
+            LibraryOptions libraryOptions,
+            CancellationToken cancellationToken) {
+            var item = itemResult.Item;
+            if (!ShouldEnhance(item, itemResult.People, libraryOptions))
+                return Task.FromResult(ItemUpdateType.None);
+
+            return Task.FromResult(Enhance(item, itemResult.People, false));
+        }
+
+        // 必须在其他自定义元数据 Provider 之后执行，避免豆瓣角色名被后续刮削器覆盖。
         public int Order => int.MaxValue;
 
         private static bool ShouldEnhance(BaseItem item, List<PersonInfo> people, LibraryOptions libraryOptions) {
