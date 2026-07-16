@@ -214,11 +214,11 @@ cp -r .monkeycode/ /tmp/ 2>/dev/null
 ### 2. 获取上游最新并重置
 
 ```bash
+# 如果尚未添加上游远程，先执行：
+# git remote add upstream https://github.com/honue/MediaInfoKeeper.git
 git fetch upstream
 git reset --hard upstream/master
-# 注意：git clean -fd 会删除未跟踪文件（包括 docs/ 和 .monkeycode/）
-# 如果确认只有这些是需要恢复的，可以执行；否则逐文件检查
-# git clean -fd
+# 不要执行 git clean -fd，会删除 docs/ 和 .monkeycode/
 ```
 
 ### 3. 恢复新增文件
@@ -232,11 +232,12 @@ cp /tmp/BangumiCharacterRefreshTask.cs ScheduledTask/
 ### 4. 恢复配置文件和文档
 
 ```bash
-# 恢复文档
+# 恢复文档（确保目录存在）
+mkdir -p docs
 cp /tmp/bangumi-character-enhancement.md docs/ 2>/dev/null
 
 # 恢复 .monkeycode/ 目录
-cp -r /tmp/.monkeycode/ . 2>/dev/null
+cp -r /tmp/.monkeycode . 2>/dev/null
 ```
 
 ### 5. 修改 MetaDataOptions.cs
