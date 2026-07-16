@@ -81,6 +81,18 @@ namespace MediaInfoKeeper.Options {
         [SelectItemsSource(nameof(TvdbFallbackLanguageList))]
         public string TvdbFallbackLanguages { get; set; } = "zhtw,yue";
 
+        [DisplayName("启用 Bangumi 角色中文名增强")]
+        [Description("开启后从 Bangumi 获取角色中文名。国漫用中文搜索、日漫用日文搜索、美漫用英文搜索，首次搜索无结果时降级为英文。")]
+        public bool EnableBangumiCharacters { get; set; } = false;
+
+        [DisplayName("Bangumi API 地址")]
+        [Description("默认使用 https://api.bgm.tv，可替换为镜像地址。")]
+        public string BangumiApiBaseUrl { get; set; } = string.Empty;
+
+        [DisplayName("已是中文名不替换")]
+        [Description("开启后，如果角色名已包含中文则跳过替换。")]
+        public bool BangumiSkipExistingChinese { get; set; } = false;
+
         public void Initialize() {
             EnsureScraperEditors();
             ScraperEntries = new GenericItemList(new[] {

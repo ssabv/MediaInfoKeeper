@@ -35,8 +35,8 @@ namespace MediaInfoKeeper.Options {
         [Browsable(false)] public bool ShowRefreshQueueStatus { get; set; } = true;
 
         public LabelItem UpdatePluginProjectUrl { get; set; } =
-            new("https://github.com/honue/MediaInfoKeeper") {
-                HyperLink = "https://github.com/honue/MediaInfoKeeper",
+            new("https://github.com/ssabv/MediaInfoKeeper") {
+                HyperLink = "https://github.com/ssabv/MediaInfoKeeper",
                 Icon = IconNames.open_in_new
             };
 
@@ -73,6 +73,7 @@ namespace MediaInfoKeeper.Options {
             ScheduledTasksEditor.ExportExistingMediaInfo ??= new ExportExistingMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.RestoreMediaInfo ??= new RestoreMediaInfoTaskEditorOptions();
             ScheduledTasksEditor.UpdatePlugin ??= new UpdatePluginTaskEditorOptions();
+            ScheduledTasksEditor.BangumiCharacter ??= new BangumiCharacterTaskEditorOptions();
         }
 
         public void PrepareScheduledTaskEditorForUi() {
@@ -83,6 +84,7 @@ namespace MediaInfoKeeper.Options {
             ScheduledTasksEditor.ExportExistingMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.RestoreMediaInfo.LibraryList = LibraryList;
             ScheduledTasksEditor.UpdatePlugin.Initialize();
+            ScheduledTasksEditor.BangumiCharacter.LibraryList = LibraryList;
 
             ScheduledTaskEntries = BuildScheduledTaskEntries();
         }
@@ -162,6 +164,7 @@ namespace MediaInfoKeeper.Options {
         private GenericItemList BuildScheduledTaskEntries() {
             return new GenericItemList(new[] {
                 CreateScheduledTaskEntry("更新插件", "main.scheduled.updatePlugin", "main.scheduled.run.updatePlugin"),
+                CreateScheduledTaskEntry("Bangumi 角色增强", "main.scheduled.bangumiCharacter", "main.scheduled.run.bangumiCharacter"),
                 CreateScheduledTaskEntry("刷新媒体元数据", "main.scheduled.refreshRecentMetadata",
                     "main.scheduled.run.refreshRecentMetadata"),
                 CreateScheduledTaskEntry("备份媒体信息", "main.scheduled.exportExistingMediaInfo",
@@ -438,6 +441,21 @@ namespace MediaInfoKeeper.Options {
                 new();
 
             [DisplayName("更新插件")] public UpdatePluginTaskEditorOptions UpdatePlugin { get; set; } = new();
+
+            [DisplayName("Bangumi 角色增强")]
+            public BangumiCharacterTaskEditorOptions BangumiCharacter { get; set; } = new();
+        }
+
+        public class BangumiCharacterTaskEditorOptions : EditableOptionsBase {
+            public override string EditorTitle => string.Empty;
+
+            [Browsable(false)] public IEnumerable<EditorSelectOption> LibraryList { get; set; }
+
+            [DisplayName("媒体库范围")]
+            [Description("留空表示全部媒体库。")]
+            [EditMultilSelect]
+            [SelectItemsSource(nameof(LibraryList))]
+            public string BangumiCharacterLibraries { get; set; } = string.Empty;
         }
     }
 }
