@@ -392,7 +392,7 @@ namespace MediaInfoKeeper.Provider
                     if (actors.Count > 0 && !string.IsNullOrWhiteSpace(actors[0]) && !byActor.ContainsKey(actors[0]))
                         byActor[actors[0]] = chs;
 
-                    if (isChinese && actorIds.Count > 0)
+                    if (actorIds.Count > 0)
                     {
                         try
                         {
@@ -422,6 +422,8 @@ namespace MediaInfoKeeper.Provider
                             logger.Debug("Bangumi 角色增强: 获取声优详情失败 id={0}: {1}", actorIds[0], ex.Message);
                         }
                     }
+
+                    await Task.Delay(150);
                 }
                 catch (Exception ex)
                 {
@@ -429,12 +431,8 @@ namespace MediaInfoKeeper.Provider
                 }
             }
 
-            if (isChinese)
-                logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情({1}个声优详情), 共 {2} 个角色, by_actor={3}条",
-                    detailCount, actorDetailCount, charList.Count, byActor.Count);
-            else
-                logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情（共 {1} 个角色）, by_actor={2}条",
-                    detailCount, charList.Count, byActor.Count);
+            logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情({1}个声优详情), 共 {2} 个角色, by_actor={3}条",
+                detailCount, actorDetailCount, charList.Count, byActor.Count);
             return (byEn, byActor);
         }
 
