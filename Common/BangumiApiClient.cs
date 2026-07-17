@@ -22,6 +22,7 @@ namespace MediaInfoKeeper.Common
             public string NameCn { get; set; }
             public int? Year { get; set; }
             public int? EpisodeCount { get; set; }
+            public string Platform { get; set; }
         }
 
         public static string GetApiBase()
@@ -221,6 +222,11 @@ namespace MediaInfoKeeper.Common
                     if (item.TryGetProperty("eps", out var epsEl) && epsEl.ValueKind == JsonValueKind.Number)
                     {
                         candidate.EpisodeCount = epsEl.GetInt32();
+                    }
+
+                    if (item.TryGetProperty("platform", out var platformEl) && platformEl.ValueKind == JsonValueKind.String)
+                    {
+                        candidate.Platform = platformEl.GetString();
                     }
 
                     result.Add(candidate);

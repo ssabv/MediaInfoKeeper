@@ -226,7 +226,7 @@ namespace MediaInfoKeeper.Provider
                 var mediaType = item is Series ? "tv" : "movie";
                 logger.Debug("Bangumi 角色增强: 条目={0}, tmdbId={1}, 现有角色数={2}", itemName, tmdbId, people.Count);
 
-                var (englishTitle, originalLanguage, tmdbYear, tmdbEpisodeCount) = await FetchItemInfoAsync(tmdbId, mediaType);
+                var (englishTitle, originalLanguage, tmdbYear, _) = await FetchItemInfoAsync(tmdbId, mediaType);
                 if (string.IsNullOrWhiteSpace(originalLanguage))
                     originalLanguage = "ja";
 
@@ -238,7 +238,7 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(cnTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 国漫中文标题搜索, keyword={0}", cnTitle);
-                        subjectId = await SearchBangumiAsync(cnTitle, tmdbYear, tmdbEpisodeCount);
+                        subjectId = await SearchBangumiAsync(cnTitle, tmdbYear, mediaType);
                     }
                 }
                 else if (originalLanguage == "ja")
@@ -247,7 +247,7 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(japTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 日漫日文标题搜索, keyword={0}", japTitle);
-                        subjectId = await SearchBangumiAsync(japTitle, tmdbYear, tmdbEpisodeCount);
+                        subjectId = await SearchBangumiAsync(japTitle, tmdbYear, mediaType);
                     }
                 }
                 else
@@ -255,14 +255,14 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(englishTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
-                        subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, tmdbEpisodeCount);
+                        subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
                     }
                 }
 
                 if (!subjectId.HasValue && !string.IsNullOrWhiteSpace(englishTitle))
                 {
                     logger.Info("Bangumi 角色增强: 源语言搜索无结果, 降级使用英文标题={0}", englishTitle);
-                    subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, tmdbEpisodeCount);
+                    subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
                 }
 
                 if (!subjectId.HasValue)
@@ -328,7 +328,7 @@ namespace MediaInfoKeeper.Provider
             return item?.Name;
         }
 
-        private async Task<int?> SearchBangumiAsync(string keyword, int? targetYear = null, int? targetEpisodeCount = null)
+        private async Task<int?> SearchBangumiAsync(string keyword, int? targetYear = null, string mediaType = null)
         {
             try
             {
@@ -349,9 +349,9 @@ namespace MediaInfoKeeper.Provider
                 var candidates = BangumiApiClient.ParseSearchResults(json);
                 if (candidates.Count == 0) return null;
 
-                if (!targetYear.HasValue && !targetEpisodeCount.HasValue)
+                if (!targetYear.HasValue)
                 {
-                    logger.Debug("Bangumi 搜索: 无年份/集数参考，使用第一条 id={0}", candidates[0].Id);
+                    logger.Debug("Bangumi 搜索: 无年份参考，使用第一条 id={0}", candidates[0].Id);
                     return candidates[0].Id;
                 }
 
@@ -359,18 +359,18 @@ namespace MediaInfoKeeper.Provider
                     .Select(c => new
                     {
                         Candidate = c,
-                        Score = ScoreBangumiCandidate(c, targetYear, targetEpisodeCount)
+                        Score = ScoreBangumiCandidate(c, targetYear, mediaType)
                     })
                     .OrderByDescending(x => x.Score)
                     .First();
 
                 logger.Debug(
-                    "Bangumi 搜索: keyword={0}, 命中 id={1}, name={2}, year={3}, eps={4}, score={5}",
+                    "Bangumi 搜索: keyword={0}, 命中 id={1}, name={2}, year={3}, platform={4}, score={5}",
                     keyword,
                     best.Candidate.Id,
                     best.Candidate.Name ?? best.Candidate.NameCn ?? "(null)",
                     best.Candidate.Year?.ToString() ?? "(null)",
-                    best.Candidate.EpisodeCount?.ToString() ?? "(null)",
+                    best.Candidate.Platform ?? "(null)",
                     best.Score);
 
                 return best.Candidate.Id;
@@ -385,7 +385,7 @@ namespace MediaInfoKeeper.Provider
         private static int ScoreBangumiCandidate(
             BangumiApiClient.BangumiSearchCandidate candidate,
             int? targetYear,
-            int? targetEpisodeCount)
+            string mediaType)
         {
             var score = 0;
 
@@ -400,25 +400,18 @@ namespace MediaInfoKeeper.Provider
                     score -= diff * 10;
             }
 
-            if (targetEpisodeCount.HasValue && candidate.EpisodeCount.HasValue)
+            if (!string.IsNullOrWhiteSpace(mediaType) && !string.IsNullOrWhiteSpace(candidate.Platform))
             {
-                var diff = Math.Abs(candidate.EpisodeCount.Value - targetEpisodeCount.Value);
-                if (diff == 0)
-                    score += 80;
-                else if (diff <= 2)
-                    score += 40;
-                else if (diff <= 12)
-                    score += 10;
-                else
-                    score -= Math.Min(diff, 100);
-            }
-
-            if (targetEpisodeCount.HasValue &&
-                targetEpisodeCount.Value >= 12 &&
-                candidate.EpisodeCount.HasValue &&
-                candidate.EpisodeCount.Value <= 2)
-            {
-                score -= 120;
+                var isMovie = string.Equals(mediaType, "movie", StringComparison.OrdinalIgnoreCase);
+                var candidatePlatform = candidate.Platform;
+                if (isMovie && string.Equals(candidatePlatform, "Movie", StringComparison.OrdinalIgnoreCase))
+                    score += 50;
+                else if (!isMovie && string.Equals(candidatePlatform, "TV", StringComparison.OrdinalIgnoreCase))
+                    score += 50;
+                else if (!isMovie && string.Equals(candidatePlatform, "Movie", StringComparison.OrdinalIgnoreCase))
+                    score -= 80;
+                else if (isMovie && string.Equals(candidatePlatform, "TV", StringComparison.OrdinalIgnoreCase))
+                    score -= 80;
             }
 
             return score;
