@@ -359,7 +359,7 @@ namespace MediaInfoKeeper.Provider
                     .Select(c => new
                     {
                         Candidate = c,
-                        Score = ScoreBangumiCandidate(c, targetYear, mediaType)
+                        Score = ScoreBangumiCandidate(c, keyword, targetYear, mediaType)
                     })
                     .OrderByDescending(x => x.Score)
                     .First();
@@ -384,16 +384,24 @@ namespace MediaInfoKeeper.Provider
 
         private static int ScoreBangumiCandidate(
             BangumiApiClient.BangumiSearchCandidate candidate,
+            string keyword,
             int? targetYear,
             string mediaType)
         {
             var score = 0;
 
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                if (string.Equals(candidate.Name, keyword, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(candidate.NameCn, keyword, StringComparison.OrdinalIgnoreCase))
+                    score += 200;
+            }
+
             if (targetYear.HasValue && candidate.Year.HasValue)
             {
                 var diff = Math.Abs(candidate.Year.Value - targetYear.Value);
                 if (diff == 0)
-                    score += 100;
+                    score += 50;
                 else if (diff == 1)
                     score += 30;
                 else
