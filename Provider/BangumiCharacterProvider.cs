@@ -155,8 +155,26 @@ namespace MediaInfoKeeper.Provider
                 indexes.ActorMap = charToActor;
             }
 
+            // Build episode-level actor map from the episode's own people list
+            // so guest characters (only in specific episodes) can also match via actor name
+            var episodeActorMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in people.Where(p => p.Type == PersonType.Actor))
+            {
+                var role = (p.Role ?? "").Trim().Replace(" (voice)", "").Replace("(voice)", "").Trim();
+                var actorName = (p.Name ?? "").Trim();
+                if (!string.IsNullOrWhiteSpace(role) && !string.IsNullOrWhiteSpace(actorName))
+                    episodeActorMap[role] = actorName;
+            }
+
+            var mergedActorMap = new Dictionary<string, string>(charToActor ?? new(), StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in episodeActorMap)
+            {
+                if (!mergedActorMap.ContainsKey(kv.Key))
+                    mergedActorMap[kv.Key] = kv.Value;
+            }
+
             var actorCount = people.Count(p => p.Type == PersonType.Actor);
-            var matchCount = MatchPeople(people, indexes.ByEn, indexes.ByActor, charToActor);
+            var matchCount = MatchPeople(people, indexes.ByEn, indexes.ByActor, mergedActorMap);
             if (matchCount > 0)
             {
                 logger.Debug("Bangumi 角色增强(剧集): 成功匹配 {0}/{1} 个角色", matchCount, actorCount);
