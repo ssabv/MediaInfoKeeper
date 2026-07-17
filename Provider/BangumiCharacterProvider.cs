@@ -183,7 +183,7 @@ namespace MediaInfoKeeper.Provider
             // Build episode-level actor map from the episode's own people list
             // so guest characters (only in specific episodes) can also match via actor name
             var episodeActorMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in people.Where(p => p.Type == PersonType.Actor))
+            foreach (var p in people.Where(p => p.Type == PersonType.Actor || p.Type == PersonType.GuestStar))
             {
                 var role = (p.Role ?? "").Trim().Replace(" (voice)", "").Replace("(voice)", "").Trim();
                 var actorName = (p.Name ?? "").Trim();
@@ -198,7 +198,7 @@ namespace MediaInfoKeeper.Provider
                     mergedActorMap[kv.Key] = kv.Value;
             }
 
-            var actorCount = people.Count(p => p.Type == PersonType.Actor);
+            var actorCount = people.Count(p => p.Type == PersonType.Actor || p.Type == PersonType.GuestStar);
             var matchCount = MatchPeople(people, indexes.ByEn, indexes.ByActor, mergedActorMap);
             if (matchCount > 0)
             {
@@ -299,7 +299,7 @@ namespace MediaInfoKeeper.Provider
                 }
                 cacheEntry.ActorMap = charToActor;
 
-                var actorCount = people.Count(p => p.Type == PersonType.Actor);
+                var actorCount = people.Count(p => p.Type == PersonType.Actor || p.Type == PersonType.GuestStar);
                 var matchCount = MatchPeople(people, byEn, byActor, charToActor);
                 if (matchCount > 0)
                 {
@@ -453,12 +453,11 @@ namespace MediaInfoKeeper.Provider
             List<(int Id, string NameJp, List<string> Actors, List<int> ActorIds)> charList, string originalLanguage)
         {
             var byEn = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var byActor = new Dictionary<string, string>(StringComparer.Ordinal);
+            var byActor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var detailCount = 0;
             var actorDetailCount = 0;
-            var isChinese = originalLanguage == "zh";
 
-            foreach (var (id, _, actors, actorIds) in charList)
+            foreach (var (id, chName, actors, actorIds) in charList)
             {
                 try
                 {
@@ -476,17 +475,19 @@ namespace MediaInfoKeeper.Provider
                     var dJson = await dReader.ReadToEndAsync();
 
                     var (chs, en) = BangumiApiClient.ParseCharacterDetail(dJson);
-                    if (string.IsNullOrWhiteSpace(chs)) continue;
+                    var displayName = !string.IsNullOrWhiteSpace(chs) ? chs
+                        : !string.IsNullOrWhiteSpace(chName) ? chName : null;
+                    if (displayName == null) continue;
 
                     detailCount++;
 
                     if (!string.IsNullOrWhiteSpace(en) && !byEn.ContainsKey(en))
-                        byEn[en] = chs;
+                        byEn[en] = displayName;
 
                     if (actors.Count > 0 && !string.IsNullOrWhiteSpace(actors[0]) && !byActor.ContainsKey(actors[0]))
-                        byActor[actors[0]] = chs;
+                        byActor[actors[0]] = displayName;
 
-                    if (isChinese && actorIds.Count > 0)
+                    if (actorIds.Count > 0)
                     {
                         try
                         {
@@ -507,7 +508,7 @@ namespace MediaInfoKeeper.Provider
                             foreach (var alias in aliases)
                             {
                                 if (!byActor.ContainsKey(alias))
-                                    byActor[alias] = chs;
+                                    byActor[alias] = displayName;
                             }
                             actorDetailCount++;
                         }
@@ -523,12 +524,8 @@ namespace MediaInfoKeeper.Provider
                 }
             }
 
-            if (isChinese)
-                logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情({1}个声优详情), 共 {2} 个角色, by_actor={3}条",
-                    detailCount, actorDetailCount, charList.Count, byActor.Count);
-            else
-                logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情（共 {1} 个角色）, by_actor={2}条",
-                    detailCount, charList.Count, byActor.Count);
+            logger.Debug("Bangumi 角色增强: 共获取 {0} 个角色详情({1}个声优详情), 共 {2} 个角色, by_actor={3}条",
+                detailCount, actorDetailCount, charList.Count, byActor.Count);
             return (byEn, byActor);
         }
 
@@ -540,7 +537,7 @@ namespace MediaInfoKeeper.Provider
             var matchCount = 0;
             var skipChinese = Plugin.Instance?.Options?.MetaData?.BangumiSkipExistingChinese == true;
 
-            foreach (var person in people.Where(p => p.Type == PersonType.Actor))
+            foreach (var person in people.Where(p => p.Type == PersonType.Actor || p.Type == PersonType.GuestStar))
             {
                 var role = (person.Role ?? "").Trim();
                 var roleClean = role.Replace(" (voice)", "").Replace("(voice)", "").Trim();

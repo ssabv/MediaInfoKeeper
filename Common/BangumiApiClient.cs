@@ -103,6 +103,10 @@ namespace MediaInfoKeeper.Common
             {
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
+
+                if (root.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                    chs = nameEl.GetString();
+
                 if (root.TryGetProperty("infobox", out var ib) && ib.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var kv in ib.EnumerateArray())
@@ -110,7 +114,8 @@ namespace MediaInfoKeeper.Common
                         var key = S(kv, "key");
                         if (key == "简体中文名")
                         {
-                            chs = S(kv, "value");
+                            var v = S(kv, "value");
+                            if (!string.IsNullOrWhiteSpace(v)) chs = v;
                         }
                         if (key == "别名")
                         {
@@ -138,6 +143,12 @@ namespace MediaInfoKeeper.Common
             {
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
+                if (root.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                {
+                    var name = nameEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(name) && !result.Contains(name))
+                        result.Add(name);
+                }
                 if (root.TryGetProperty("infobox", out var ib) && ib.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var kv in ib.EnumerateArray())
@@ -146,7 +157,8 @@ namespace MediaInfoKeeper.Common
                         if (key == "简体中文名")
                         {
                             var v = S(kv, "value");
-                            if (!string.IsNullOrWhiteSpace(v)) result.Add(v);
+                            if (!string.IsNullOrWhiteSpace(v) && !result.Contains(v))
+                                result.Add(v);
                         }
                         else if (key == "别名")
                         {
@@ -154,7 +166,7 @@ namespace MediaInfoKeeper.Common
                             {
                                 foreach (var alias in aliases.EnumerateArray())
                                 {
-                                    if (alias.ValueKind == JsonValueKind.Object && !alias.TryGetProperty("k", out _))
+                                    if (alias.ValueKind == JsonValueKind.Object)
                                     {
                                         var v = S(alias, "v");
                                         if (!string.IsNullOrWhiteSpace(v) && !result.Contains(v))
