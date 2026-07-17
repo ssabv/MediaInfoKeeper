@@ -69,7 +69,7 @@ namespace MediaInfoKeeper.Provider
             return (apiKey, baseUrl.TrimEnd('/'));
         }
 
-        private async Task<(string EnglishTitle, string OriginalLanguage)> FetchItemInfoAsync(string tmdbId, string mediaType)
+        private async Task<(string EnglishTitle, string OriginalLanguage, int? Year, int? EpisodeCount)> FetchItemInfoAsync(string tmdbId, string mediaType)
         {
             try
             {
@@ -95,13 +95,38 @@ namespace MediaInfoKeeper.Provider
                 var originalLanguage = doc.RootElement.TryGetProperty("original_language", out var langEl)
                     ? langEl.GetString() : null;
 
-                logger.Debug("Bangumi 角色增强: 条目信息 enTitle={0}, origLang={1}", englishTitle ?? "(null)", originalLanguage ?? "(null)");
-                return (englishTitle, originalLanguage);
+                int? year = null;
+                var dateProperty = mediaType == "tv" ? "first_air_date" : "release_date";
+                if (doc.RootElement.TryGetProperty(dateProperty, out var dateEl) && dateEl.ValueKind == JsonValueKind.String)
+                {
+                    var date = dateEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(date) && date.Length >= 4 &&
+                        int.TryParse(date.Substring(0, 4), out var parsedYear))
+                    {
+                        year = parsedYear;
+                    }
+                }
+
+                int? episodeCount = null;
+                if (mediaType == "tv" &&
+                    doc.RootElement.TryGetProperty("number_of_episodes", out var epsEl) &&
+                    epsEl.ValueKind == JsonValueKind.Number)
+                {
+                    episodeCount = epsEl.GetInt32();
+                }
+
+                logger.Debug(
+                    "Bangumi 角色增强: 条目信息 enTitle={0}, origLang={1}, year={2}, eps={3}",
+                    englishTitle ?? "(null)",
+                    originalLanguage ?? "(null)",
+                    year?.ToString() ?? "(null)",
+                    episodeCount?.ToString() ?? "(null)");
+                return (englishTitle, originalLanguage, year, episodeCount);
             }
             catch (Exception ex)
             {
                 logger.Debug("Bangumi 角色增强: 获取条目信息失败: {0}", ex.Message);
-                return (null, null);
+                return (null, null, null, null);
             }
         }
 
@@ -201,7 +226,7 @@ namespace MediaInfoKeeper.Provider
                 var mediaType = item is Series ? "tv" : "movie";
                 logger.Debug("Bangumi 角色增强: 条目={0}, tmdbId={1}, 现有角色数={2}", itemName, tmdbId, people.Count);
 
-                var (englishTitle, originalLanguage) = await FetchItemInfoAsync(tmdbId, mediaType);
+                var (englishTitle, originalLanguage, tmdbYear, tmdbEpisodeCount) = await FetchItemInfoAsync(tmdbId, mediaType);
                 if (string.IsNullOrWhiteSpace(originalLanguage))
                     originalLanguage = "ja";
 
@@ -213,7 +238,7 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(cnTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 国漫中文标题搜索, keyword={0}", cnTitle);
-                        subjectId = await SearchBangumiAsync(cnTitle);
+                        subjectId = await SearchBangumiAsync(cnTitle, tmdbYear, tmdbEpisodeCount);
                     }
                 }
                 else if (originalLanguage == "ja")
@@ -222,7 +247,7 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(japTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 日漫日文标题搜索, keyword={0}", japTitle);
-                        subjectId = await SearchBangumiAsync(japTitle);
+                        subjectId = await SearchBangumiAsync(japTitle, tmdbYear, tmdbEpisodeCount);
                     }
                 }
                 else
@@ -230,14 +255,14 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(englishTitle))
                     {
                         logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
-                        subjectId = await SearchBangumiAsync(englishTitle);
+                        subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, tmdbEpisodeCount);
                     }
                 }
 
                 if (!subjectId.HasValue && !string.IsNullOrWhiteSpace(englishTitle))
                 {
                     logger.Info("Bangumi 角色增强: 源语言搜索无结果, 降级使用英文标题={0}", englishTitle);
-                    subjectId = await SearchBangumiAsync(englishTitle);
+                    subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, tmdbEpisodeCount);
                 }
 
                 if (!subjectId.HasValue)
@@ -303,7 +328,7 @@ namespace MediaInfoKeeper.Provider
             return item?.Name;
         }
 
-        private async Task<int?> SearchBangumiAsync(string keyword)
+        private async Task<int?> SearchBangumiAsync(string keyword, int? targetYear = null, int? targetEpisodeCount = null)
         {
             try
             {
@@ -321,13 +346,82 @@ namespace MediaInfoKeeper.Provider
                 using var resp = await Task.Run(() => Plugin.SharedHttpClient.SendAsync(opts, "POST"));
                 using var reader = new StreamReader(resp.Content);
                 var json = await reader.ReadToEndAsync();
-                return BangumiApiClient.ParseSearchResult(json);
+                var candidates = BangumiApiClient.ParseSearchResults(json);
+                if (candidates.Count == 0) return null;
+
+                if (!targetYear.HasValue && !targetEpisodeCount.HasValue)
+                {
+                    logger.Debug("Bangumi 搜索: 无年份/集数参考，使用第一条 id={0}", candidates[0].Id);
+                    return candidates[0].Id;
+                }
+
+                var best = candidates
+                    .Select(c => new
+                    {
+                        Candidate = c,
+                        Score = ScoreBangumiCandidate(c, targetYear, targetEpisodeCount)
+                    })
+                    .OrderByDescending(x => x.Score)
+                    .First();
+
+                logger.Debug(
+                    "Bangumi 搜索: keyword={0}, 命中 id={1}, name={2}, year={3}, eps={4}, score={5}",
+                    keyword,
+                    best.Candidate.Id,
+                    best.Candidate.Name ?? best.Candidate.NameCn ?? "(null)",
+                    best.Candidate.Year?.ToString() ?? "(null)",
+                    best.Candidate.EpisodeCount?.ToString() ?? "(null)",
+                    best.Score);
+
+                return best.Candidate.Id;
             }
             catch (Exception ex)
             {
                 logger.Error("Bangumi 搜索异常: {0}", ex.Message);
                 return null;
             }
+        }
+
+        private static int ScoreBangumiCandidate(
+            BangumiApiClient.BangumiSearchCandidate candidate,
+            int? targetYear,
+            int? targetEpisodeCount)
+        {
+            var score = 0;
+
+            if (targetYear.HasValue && candidate.Year.HasValue)
+            {
+                var diff = Math.Abs(candidate.Year.Value - targetYear.Value);
+                if (diff == 0)
+                    score += 100;
+                else if (diff == 1)
+                    score += 30;
+                else
+                    score -= diff * 10;
+            }
+
+            if (targetEpisodeCount.HasValue && candidate.EpisodeCount.HasValue)
+            {
+                var diff = Math.Abs(candidate.EpisodeCount.Value - targetEpisodeCount.Value);
+                if (diff == 0)
+                    score += 80;
+                else if (diff <= 2)
+                    score += 40;
+                else if (diff <= 12)
+                    score += 10;
+                else
+                    score -= Math.Min(diff, 100);
+            }
+
+            if (targetEpisodeCount.HasValue &&
+                targetEpisodeCount.Value >= 12 &&
+                candidate.EpisodeCount.HasValue &&
+                candidate.EpisodeCount.Value <= 2)
+            {
+                score -= 120;
+            }
+
+            return score;
         }
 
         private async Task<List<(int Id, string NameJp, List<string> Actors, List<int> ActorIds)>> FetchCharacterListAsync(int subjectId)
