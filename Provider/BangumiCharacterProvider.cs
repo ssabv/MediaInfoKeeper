@@ -162,8 +162,9 @@ namespace MediaInfoKeeper.Provider
 
             if (!IndexCache.TryGetValue(tmdbId, out var indexes))
             {
-                logger.Debug("Bangumi 角色增强(剧集): 索引缓存未命中, 跳过 tmdbId={0}", tmdbId);
-                return ItemUpdateType.None;
+                logger.Info("Bangumi 角色增强(剧集): 索引缓存未命中, 主动获取 tmdbId={0}", tmdbId);
+                indexes = await PopulateIndexCacheAsync(series, tmdbId, "tv", ct);
+                if (indexes == null) return ItemUpdateType.None;
             }
 
             var charToActor = indexes.ActorMap;
@@ -226,71 +227,10 @@ namespace MediaInfoKeeper.Provider
                 var mediaType = item is Series ? "tv" : "movie";
                 logger.Debug("Bangumi 角色增强: 条目={0}, tmdbId={1}, 现有角色数={2}", itemName, tmdbId, people.Count);
 
-                var (englishTitle, originalLanguage, tmdbYear, _) = await FetchItemInfoAsync(tmdbId, mediaType);
-                if (string.IsNullOrWhiteSpace(originalLanguage))
-                    originalLanguage = "ja";
+                var cacheEntry = await PopulateIndexCacheAsync(item, tmdbId, mediaType, ct);
+                if (cacheEntry == null) return ItemUpdateType.None;
 
-                int? subjectId = null;
-
-                if (originalLanguage == "zh")
-                {
-                    var cnTitle = item.Name;
-                    if (!string.IsNullOrWhiteSpace(cnTitle))
-                    {
-                        logger.Debug("Bangumi 角色增强: 国漫中文标题搜索, keyword={0}", cnTitle);
-                        subjectId = await SearchBangumiAsync(cnTitle, tmdbYear, mediaType);
-                    }
-                }
-                else if (originalLanguage == "ja")
-                {
-                    var japTitle = GetJapaneseTitle(item);
-                    if (!string.IsNullOrWhiteSpace(japTitle))
-                    {
-                        logger.Debug("Bangumi 角色增强: 日漫日文标题搜索, keyword={0}", japTitle);
-                        subjectId = await SearchBangumiAsync(japTitle, tmdbYear, mediaType);
-                    }
-                }
-                else
-                {
-                    if (!string.IsNullOrWhiteSpace(englishTitle))
-                    {
-                        logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
-                        subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
-                    }
-                }
-
-                if (!subjectId.HasValue && !string.IsNullOrWhiteSpace(englishTitle))
-                {
-                    logger.Info("Bangumi 角色增强: 源语言搜索无结果, 降级使用英文标题={0}", englishTitle);
-                    subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
-                }
-
-                if (!subjectId.HasValue)
-                {
-                    logger.Info("Bangumi 角色增强: 搜索无结果");
-                    return ItemUpdateType.None;
-                }
-                logger.Debug("Bangumi 角色增强: 匹配科目 id={0}", subjectId.Value);
-
-                var charList = await FetchCharacterListAsync(subjectId.Value);
-                if (charList.Count == 0)
-                {
-                    logger.Info("Bangumi 角色增强: 角色列表为空, subject_id={0}", subjectId.Value);
-                    return ItemUpdateType.None;
-                }
-                var charsWithActors = charList.Count(c => c.Actors.Count > 0);
-                logger.Debug("Bangumi 角色增强: 获取到 {0} 个角色, 其中 {1} 个有声优", charList.Count, charsWithActors);
-
-                var (byEn, byActor) = await BuildIndexesAsync(charList, originalLanguage);
-                logger.Debug("Bangumi 角色增强: 索引构建完成, by_en={0}条, by_actor={1}条", byEn.Count, byActor.Count);
-
-                var cacheEntry = new SubjectIndex { ByEn = byEn, ByActor = byActor, OriginalLanguage = originalLanguage };
-                if (!string.IsNullOrWhiteSpace(tmdbId))
-                {
-                    IndexCache[tmdbId] = cacheEntry;
-                    logger.Debug("Bangumi 角色增强: 索引已缓存, tmdbId={0}, origLang={1}", tmdbId, originalLanguage);
-                }
-
+                var originalLanguage = cacheEntry.OriginalLanguage;
                 var charToActor = await FetchTmdbActorsAsync(item, originalLanguage);
                 if (charToActor == null || charToActor.Count == 0)
                 {
@@ -300,7 +240,7 @@ namespace MediaInfoKeeper.Provider
                 cacheEntry.ActorMap = charToActor;
 
                 var actorCount = people.Count(p => p.Type == PersonType.Actor || p.Type == PersonType.GuestStar);
-                var matchCount = MatchPeople(people, byEn, byActor, charToActor);
+                var matchCount = MatchPeople(people, cacheEntry.ByEn, cacheEntry.ByActor, charToActor);
                 if (matchCount > 0)
                 {
                     logger.Info("Bangumi 角色增强: 成功匹配 {0}/{1} 个角色, lang={2}", matchCount, actorCount, originalLanguage);
@@ -326,6 +266,72 @@ namespace MediaInfoKeeper.Provider
                 return movie.OriginalTitle ?? movie.Name;
 
             return item?.Name;
+        }
+
+        private async Task<SubjectIndex> PopulateIndexCacheAsync(BaseItem item, string tmdbId, string mediaType, CancellationToken ct)
+        {
+            var (englishTitle, originalLanguage, tmdbYear, _) = await FetchItemInfoAsync(tmdbId, mediaType);
+            if (string.IsNullOrWhiteSpace(originalLanguage))
+                originalLanguage = "ja";
+
+            int? subjectId = null;
+
+            if (originalLanguage == "zh")
+            {
+                var cnTitle = item.Name;
+                if (!string.IsNullOrWhiteSpace(cnTitle))
+                {
+                    logger.Debug("Bangumi 角色增强: 国漫中文标题搜索, keyword={0}", cnTitle);
+                    subjectId = await SearchBangumiAsync(cnTitle, tmdbYear, mediaType);
+                }
+            }
+            else if (originalLanguage == "ja")
+            {
+                var japTitle = GetJapaneseTitle(item);
+                if (!string.IsNullOrWhiteSpace(japTitle))
+                {
+                    logger.Debug("Bangumi 角色增强: 日漫日文标题搜索, keyword={0}", japTitle);
+                    subjectId = await SearchBangumiAsync(japTitle, tmdbYear, mediaType);
+                }
+            }
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(englishTitle))
+                {
+                    logger.Debug("Bangumi 角色增强: 英文标题搜索, keyword={0}", englishTitle);
+                    subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
+                }
+            }
+
+            if (!subjectId.HasValue && !string.IsNullOrWhiteSpace(englishTitle))
+            {
+                logger.Info("Bangumi 角色增强: 源语言搜索无结果, 降级使用英文标题={0}", englishTitle);
+                subjectId = await SearchBangumiAsync(englishTitle, tmdbYear, mediaType);
+            }
+
+            if (!subjectId.HasValue)
+            {
+                logger.Info("Bangumi 角色增强: 搜索无结果");
+                return null;
+            }
+            logger.Debug("Bangumi 角色增强: 匹配科目 id={0}", subjectId.Value);
+
+            var charList = await FetchCharacterListAsync(subjectId.Value);
+            if (charList.Count == 0)
+            {
+                logger.Info("Bangumi 角色增强: 角色列表为空, subject_id={0}", subjectId.Value);
+                return null;
+            }
+            var charsWithActors = charList.Count(c => c.Actors.Count > 0);
+            logger.Debug("Bangumi 角色增强: 获取到 {0} 个角色, 其中 {1} 个有声优", charList.Count, charsWithActors);
+
+            var (byEn, byActor) = await BuildIndexesAsync(charList, originalLanguage);
+            logger.Debug("Bangumi 角色增强: 索引构建完成, by_en={0}条, by_actor={1}条", byEn.Count, byActor.Count);
+
+            var cacheEntry = new SubjectIndex { ByEn = byEn, ByActor = byActor, OriginalLanguage = originalLanguage };
+            IndexCache[tmdbId] = cacheEntry;
+            logger.Debug("Bangumi 角色增强: 索引已缓存, tmdbId={0}, origLang={1}", tmdbId, originalLanguage);
+            return cacheEntry;
         }
 
         private async Task<int?> SearchBangumiAsync(string keyword, int? targetYear = null, string mediaType = null)
