@@ -491,14 +491,17 @@ namespace MediaInfoKeeper.Provider
                     if (!string.IsNullOrWhiteSpace(en) && !byEn.ContainsKey(en))
                         byEn[en] = displayName;
 
-                    if (actors.Count > 0 && !string.IsNullOrWhiteSpace(actors[0]) && !byActor.ContainsKey(actors[0]))
-                        byActor[actors[0]] = displayName;
+                    for (var ai = 0; ai < actors.Count; ai++)
+                    {
+                        if (!string.IsNullOrWhiteSpace(actors[ai]) && !byActor.ContainsKey(actors[ai]))
+                            byActor[actors[ai]] = displayName;
+                    }
 
-                    if (actorIds.Count > 0)
+                    for (var ai = 0; ai < actorIds.Count && ai < actors.Count; ai++)
                     {
                         try
                         {
-                            var personUrl = BangumiApiClient.BuildPersonDetailUrl(actorIds[0]);
+                            var personUrl = BangumiApiClient.BuildPersonDetailUrl(actorIds[ai]);
                             var personOpts = new HttpRequestOptions
                             {
                                 Url = personUrl,
@@ -521,7 +524,7 @@ namespace MediaInfoKeeper.Provider
                         }
                         catch (Exception ex)
                         {
-                            logger.Debug("Bangumi 角色增强: 获取声优详情失败 id={0}: {1}", actorIds[0], ex.Message);
+                            logger.Debug("Bangumi 角色增强: 获取声优详情失败 id={0}: {1}", actorIds[ai], ex.Message);
                         }
                     }
                 }
