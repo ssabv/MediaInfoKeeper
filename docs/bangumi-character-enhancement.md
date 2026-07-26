@@ -1,8 +1,8 @@
 # Bangumi 角色中文名增强
 
 > **维护者**: ssabv (fork from [honue/MediaInfoKeeper](https://github.com/honue/MediaInfoKeeper))
-> **上游基准版本**: v1.7.4.7
-> **分支版本**: v1.7.4.7-bangumi
+> **上游基准版本**: v1.7.4.8
+> **分支版本**: v1.7.4.8-bangumi
 
 ---
 
@@ -379,7 +379,13 @@ gh workflow run ci.yml -f channel=stable -R ssabv/MediaInfoKeeper
 
 ## 版本变更记录
 
-### v1.7.4.7-bangumi (当前)
+### v1.7.4.8-bangumi (当前)
+
+- 上游基准: v1.7.4.8 (honue)
+- 变更: 上游同步至 v1.7.4.8，保持 Bangumi 所有修改
+- 变更: 自动更新地址 4 处改为 ssabv/MediaInfoKeeper
+
+### v1.7.4.7-bangumi
 
 - 上游基准: v1.7.4.7 (honue)
 - 新增: 基于上游 v1.7.4.7 重新集成全部 Bangumi 修改
