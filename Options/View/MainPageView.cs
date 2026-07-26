@@ -21,6 +21,8 @@ namespace MediaInfoKeeper.Options.View {
         private const string RestoreMediaInfoDialogCommandId = "main.scheduled.restoreMediaInfo";
         private const string RestoreMediaInfoRunCommandId = "main.scheduled.run.restoreMediaInfo";
         private const string RestartEmbyRunCommandId = "main.scheduled.run.restartEmby";
+        private const string BangumiCharacterDialogCommandId = "main.scheduled.bangumiCharacter";
+        private const string BangumiCharacterRunCommandId = "main.scheduled.run.bangumiCharacter";
 
         private readonly IApplicationHost applicationHost;
         private readonly PluginInfo pluginInfo;
@@ -54,6 +56,9 @@ namespace MediaInfoKeeper.Options.View {
             if (string.Equals(commandId, RestoreMediaInfoDialogCommandId, StringComparison.Ordinal))
                 return Task.FromResult<IPluginUIView>(new RestoreMediaInfoTaskDialogView(pluginInfo.Id, Options));
 
+            if (string.Equals(commandId, BangumiCharacterDialogCommandId, StringComparison.Ordinal))
+                return Task.FromResult<IPluginUIView>(new BangumiCharacterTaskDialogView(pluginInfo.Id, Options));
+
             if (string.Equals(commandId, UpdatePluginRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<UpdatePluginTask>();
 
@@ -71,6 +76,9 @@ namespace MediaInfoKeeper.Options.View {
 
             if (string.Equals(commandId, RestartEmbyRunCommandId, StringComparison.Ordinal))
                 return RunScheduledTaskAsync<RestartEmbyTask>();
+
+            if (string.Equals(commandId, BangumiCharacterRunCommandId, StringComparison.Ordinal))
+                return RunScheduledTaskAsync<BangumiCharacterRefreshTask>();
 
             return base.RunCommand(itemId, commandId, data);
         }
