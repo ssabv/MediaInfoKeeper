@@ -266,15 +266,20 @@ namespace MediaInfoKeeper.Services {
 
             logger.Info($"{source}: 开始 {item.FileName ?? item.Name}");
 
-            return Task.Run(async () => {
+            return Task.Run(() => {
                 try {
-                    var mountPath = await Plugin.LibraryService
-                        .GetStrmMountPathAsync(itemPath)
-                        .ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(mountPath))
-                        logger.Info($"{source}: 完成 {item.FileName ?? item.Name}");
+                    // 触发完整媒体源解析链路，网盘插件会在此拦截并换取真实直链
+                    var mediaSources = Plugin.MediaInfoService.GetStaticMediaSources(item, true);
+                    var resolvedCount = 0;
+                    foreach (var ms in mediaSources) {
+                        if (ms != null && !string.IsNullOrWhiteSpace(ms.Path))
+                            resolvedCount++;
+                    }
+
+                    if (resolvedCount > 0)
+                        logger.Info($"{source}: 完成 ({resolvedCount} 个媒体源) {item.FileName ?? item.Name}");
                     else
-                        logger.Debug($"{source}: 未获取到挂载路径 {item.FileName ?? item.Name}");
+                        logger.Debug($"{source}: 未解析到媒体源 {item.FileName ?? item.Name}");
                 }
                 catch (OperationCanceledException) {
                 }

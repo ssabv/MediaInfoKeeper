@@ -137,14 +137,13 @@ namespace MediaInfoKeeper.Patch {
             var itemPath = item.Path;
             if (!string.IsNullOrWhiteSpace(itemPath) && LibraryService.IsFileShortcut(itemPath)) {
                 if (Plugin.Instance?.Options?.MediaInfo?.EnableStrmPrefetch == true) {
-                    _ = Task.Run(async () => {
+                    _ = Task.Run(() => {
                         try {
                             logger?.Info(
                                 "DetailTriggerMediaInfo - 浏览详情触发 Strm 直链预解析: {0}",
                                 item.FileName ?? item.Path ?? item.Name);
-                            await Plugin.LibraryService
-                                .GetStrmMountPathAsync(itemPath)
-                                .ConfigureAwait(false);
+                            // 触发完整媒体源解析链路，网盘插件会在此拦截并换取真实直链
+                            var mediaSources = mediaInfoService.GetStaticMediaSources(item, true);
                             logger?.Info(
                                 "DetailTriggerMediaInfo - Strm 直链预解析完成: {0}",
                                 item.FileName ?? item.Path ?? item.Name);
