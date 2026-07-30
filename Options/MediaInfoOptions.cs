@@ -28,6 +28,10 @@ namespace MediaInfoKeeper.Options {
         [Description("浏览视频或音频详情接口时，若条目没有媒体信息，则后台提取并写入 JSON。")]
         public bool ExtractMediaInfoOnItemDetail { get; set; } = false;
 
+        [DisplayName("Strm 直链预解析")]
+        [Description("播放 or 浏览 strm 条目时，提前解析网盘直链以加速后续播放。")]
+        public bool EnableStrmPrefetch { get; set; } = true;
+
         [DisplayName("MediaInfo JSON 存储路径模板")]
         [Description("默认保存到 Emby 的 /config/data/MediaInfoKeeper。留空时保存到媒体文件同目录。支持路径模板，详见 https://github.com/honue/MediaInfoKeeper/wiki")]
         [EditFolderPicker]

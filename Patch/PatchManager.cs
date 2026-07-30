@@ -168,10 +168,13 @@ namespace MediaInfoKeeper.Patch {
                 Name = "DetailTriggerMediaInfo",
                 Initialize = options => DetailTriggerMediaInfo.Initialize(
                     logger,
-                    IsPluginEnabled(options) && options.MediaInfo.ExtractMediaInfoOnItemDetail),
+                    IsPluginEnabled(options) && (options.MediaInfo.ExtractMediaInfoOnItemDetail ||
+                                                 options.MediaInfo.EnableStrmPrefetch)),
                 Configure = options => DetailTriggerMediaInfo.Configure(
-                    IsPluginEnabled(options) && options.MediaInfo.ExtractMediaInfoOnItemDetail),
-                IsEnabled = options => IsPluginEnabled(options) && options.MediaInfo.ExtractMediaInfoOnItemDetail,
+                    IsPluginEnabled(options) && (options.MediaInfo.ExtractMediaInfoOnItemDetail ||
+                                                 options.MediaInfo.EnableStrmPrefetch)),
+                IsEnabled = options => IsPluginEnabled(options) && (options.MediaInfo.ExtractMediaInfoOnItemDetail ||
+                                                                    options.MediaInfo.EnableStrmPrefetch),
                 IsReady = () => DetailTriggerMediaInfo.IsReady
             });
 

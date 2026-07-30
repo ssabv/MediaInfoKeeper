@@ -23,6 +23,8 @@ namespace MediaInfoKeeper.Services {
 
         private readonly ConcurrentDictionary<long, byte> prefetchingDanmuItemIds = new();
 
+        private readonly ConcurrentDictionary<long, byte> prefetchingStrmItemIds = new();
+
         private readonly ConcurrentDictionary<string, CancellationTokenSource> prefetchSessions = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly ISessionManager sessionManager;
@@ -64,6 +66,7 @@ namespace MediaInfoKeeper.Services {
 
             extractingItemIds.Clear();
             prefetchingDanmuItemIds.Clear();
+            prefetchingStrmItemIds.Clear();
             lifecycleCancellationTokenSource.Dispose();
         }
 
@@ -82,7 +85,8 @@ namespace MediaInfoKeeper.Services {
             var enableMediaInfoPrefetch = Plugin.Instance?.Options?.MediaInfo?.EnableMediaInfoPrefetch == true;
             var enableDanmuPrefetch =
                 Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuPrefetch == true;
-            if (!enableMediaInfoPrefetch && !enableDanmuPrefetch) return;
+            var enableStrmPrefetch = Plugin.Instance?.Options?.MediaInfo?.EnableStrmPrefetch == true;
+            if (!enableMediaInfoPrefetch && !enableDanmuPrefetch && !enableStrmPrefetch) return;
 
             if (e?.Item is not Episode episode) return;
 
@@ -125,12 +129,15 @@ namespace MediaInfoKeeper.Services {
                     var nextEpisode = libraryManager.GetItemById(nextEpisodeId) as Episode;
                     if (nextEpisode == null) return;
 
-                    var prefetchTasks = new List<Task>(2);
+                    var prefetchTasks = new List<Task>(3);
                     if (Plugin.Instance?.Options?.MediaInfo?.EnableMediaInfoPrefetch == true)
                         prefetchTasks.Add(QueueMediaInfoPrefetchIfNeededAsync(nextEpisode, cancellationToken));
 
                     if (Plugin.Instance?.Options?.MetaData?.ScrapersEditor?.Danmu?.EnableDanmuPrefetch == true)
                         prefetchTasks.Add(QueueDanmuPrefetchIfNeededAsync(nextEpisode, cancellationToken));
+
+                    if (Plugin.Instance?.Options?.MediaInfo?.EnableStrmPrefetch == true)
+                        prefetchTasks.Add(QueueStrmPrefetchIfNeededAsync(nextEpisode, cancellationToken));
 
                     if (prefetchTasks.Count > 0) await Task.WhenAll(prefetchTasks).ConfigureAwait(false);
                 }
@@ -236,6 +243,48 @@ namespace MediaInfoKeeper.Services {
                 }
                 finally {
                     prefetchingDanmuItemIds.TryRemove(item.InternalId, out _);
+                }
+            });
+        }
+
+        private Task QueueStrmPrefetchIfNeededAsync(BaseItem item, CancellationToken cancellationToken) {
+            const string source = "Strm 直链预解析";
+
+            if (cancellationToken.IsCancellationRequested) return Task.CompletedTask;
+
+            if (item is not Video && item is not Audio) return Task.CompletedTask;
+
+            var itemPath = item.Path;
+            if (string.IsNullOrWhiteSpace(itemPath) || !LibraryService.IsFileShortcut(itemPath)) {
+                return Task.CompletedTask;
+            }
+
+            if (!prefetchingStrmItemIds.TryAdd(item.InternalId, 0)) {
+                logger.Debug($"{source}: 跳过，解析中 {item.FileName ?? item.Name}");
+                return Task.CompletedTask;
+            }
+
+            logger.Info($"{source}: 开始 {item.FileName ?? item.Name}");
+
+            return Task.Run(async () => {
+                try {
+                    var mountPath = await Plugin.LibraryService
+                        .GetStrmMountPathAsync(itemPath)
+                        .ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(mountPath))
+                        logger.Info($"{source}: 完成 {item.FileName ?? item.Name}");
+                    else
+                        logger.Debug($"{source}: 未获取到挂载路径 {item.FileName ?? item.Name}");
+                }
+                catch (OperationCanceledException) {
+                }
+                catch (Exception ex) {
+                    logger.Error($"{source}: 失败 {item.FileName ?? item.Name}");
+                    logger.Error(ex.Message);
+                    logger.Debug(ex.StackTrace);
+                }
+                finally {
+                    prefetchingStrmItemIds.TryRemove(item.InternalId, out _);
                 }
             });
         }

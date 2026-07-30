@@ -133,6 +133,31 @@ namespace MediaInfoKeeper.Patch {
             var mediaInfoService = Plugin.MediaInfoService;
             if (mediaInfoService == null) return;
 
+            // Strm 直链预解析：无论媒体信息是否已存在，浏览 strm 条目时都触发
+            var itemPath = item.Path;
+            if (!string.IsNullOrWhiteSpace(itemPath) && LibraryService.IsFileShortcut(itemPath)) {
+                if (Plugin.Instance?.Options?.MediaInfo?.EnableStrmPrefetch == true) {
+                    _ = Task.Run(async () => {
+                        try {
+                            logger?.Info(
+                                "DetailTriggerMediaInfo - 浏览详情触发 Strm 直链预解析: {0}",
+                                item.FileName ?? item.Path ?? item.Name);
+                            await Plugin.LibraryService
+                                .GetStrmMountPathAsync(itemPath)
+                                .ConfigureAwait(false);
+                            logger?.Info(
+                                "DetailTriggerMediaInfo - Strm 直链预解析完成: {0}",
+                                item.FileName ?? item.Path ?? item.Name);
+                        }
+                        catch (Exception ex) {
+                            logger?.Error(
+                                "DetailTriggerMediaInfo - Strm 直链预解析失败: {0}", ex.Message);
+                        }
+                    });
+                }
+            }
+
+            // 媒体信息提取：仅缺流条目
             foreach (var mediaSource in mediaInfoService.GetStaticMediaSources(item, true)) {
                 if (mediaSource?.MediaStreams?.Any(stream =>
                         stream != null &&
