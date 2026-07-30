@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Entities.Movies;
@@ -268,12 +271,26 @@ namespace MediaInfoKeeper.Services {
 
             return Task.Run(() => {
                 try {
-                    // 触发完整媒体源解析链路，网盘插件会在此拦截并换取真实直链
+                    // 1. 读取 strm 文件内容获取目标 URL
+                    var strmUrl = ReadStrmUrl(itemPath);
+                    if (string.IsNullOrWhiteSpace(strmUrl)) {
+                        logger.Debug($"{source}: strm 内容为空 {item.FileName ?? item.Name}");
+                        return;
+                    }
+
+                    // 2. 触发完整媒体源解析链路，网盘插件会在此拦截并换取真实直链
                     var mediaSources = Plugin.MediaInfoService.GetStaticMediaSources(item, true);
                     var resolvedCount = 0;
                     foreach (var ms in mediaSources) {
                         if (ms != null && !string.IsNullOrWhiteSpace(ms.Path))
                             resolvedCount++;
+                    }
+
+                    // 3. 对 HTTP(S) strm 发起 HEAD 请求触发远端服务（如 123pan-strm-docker 的秒传流程）
+                    if (Uri.TryCreate(strmUrl, UriKind.Absolute, out var uri) &&
+                        (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))) {
+                        TriggerStrmHttpPrefetch(uri.AbsoluteUri, item.FileName ?? item.Name);
                     }
 
                     if (resolvedCount > 0)
@@ -292,6 +309,50 @@ namespace MediaInfoKeeper.Services {
                     prefetchingStrmItemIds.TryRemove(item.InternalId, out _);
                 }
             });
+        }
+
+        private void TriggerStrmHttpPrefetch(string url, string itemName) {
+            var httpClient = Plugin.SharedHttpClient;
+            if (httpClient == null) return;
+
+            try {
+                using var response = httpClient.SendAsync(
+                    new HttpRequestOptions {
+                        Url = url,
+                        TimeoutMs = 5000,
+                        BufferContent = false,
+                        LogErrors = false,
+                        LogRequest = false,
+                        LogResponse = false,
+                        EnableHttpCompression = false,
+                        EnableKeepAlive = false,
+                        EnableDefaultUserAgent = false,
+                        ThrowOnErrorResponse = false
+                    },
+                    "HEAD").GetAwaiter().GetResult();
+
+                logger.Debug(
+                    "Strm 直链预解析 HTTP 触发完成: {0}, StatusCode={1}",
+                    itemName,
+                    response?.StatusCode);
+            }
+            catch (Exception ex) {
+                logger.Debug(
+                    "Strm 直链预解析 HTTP 触发异常（不影响播放）: {0}, {1}",
+                    itemName, ex.Message);
+            }
+        }
+
+        private static string ReadStrmUrl(string strmPath) {
+            try {
+                if (!File.Exists(strmPath)) return null;
+                return File.ReadLines(strmPath)
+                    .Select(l => l?.Trim())
+                    .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#", StringComparison.Ordinal));
+            }
+            catch {
+                return null;
+            }
         }
 
         private static void TryCancel(CancellationTokenSource cancellationTokenSource) {

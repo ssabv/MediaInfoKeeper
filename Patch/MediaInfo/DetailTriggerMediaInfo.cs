@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
+using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Model.Entities;
@@ -142,11 +144,24 @@ namespace MediaInfoKeeper.Patch {
                             logger?.Info(
                                 "DetailTriggerMediaInfo - 浏览详情触发 Strm 直链预解析: {0}",
                                 item.FileName ?? item.Path ?? item.Name);
-                            // 触发完整媒体源解析链路，网盘插件会在此拦截并换取真实直链
+
+                            // 1. 触发完整媒体源解析链路（网盘插件拦截并换取真实直链）
                             var mediaSources = mediaInfoService.GetStaticMediaSources(item, true);
+                            var resolvedCount = mediaSources.Count(
+                                ms => ms != null && !string.IsNullOrWhiteSpace(ms.Path));
+
+                            // 2. 读取 strm 内容，对 HTTP(S) URL 发起 HEAD 请求触发远端秒传
+                            var strmUrl = ReadStrmUrl(itemPath);
+                            if (!string.IsNullOrWhiteSpace(strmUrl) &&
+                                Uri.TryCreate(strmUrl, UriKind.Absolute, out var uri) &&
+                                (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))) {
+                                TriggerStrmHttpPrefetch(uri.AbsoluteUri, item.FileName ?? item.Path ?? item.Name);
+                            }
+
                             logger?.Info(
-                                "DetailTriggerMediaInfo - Strm 直链预解析完成: {0}",
-                                item.FileName ?? item.Path ?? item.Name);
+                                "DetailTriggerMediaInfo - Strm 直链预解析完成: {0}, 媒体源={1}",
+                                item.FileName ?? item.Path ?? item.Name, resolvedCount);
                         }
                         catch (Exception ex) {
                             logger?.Error(
@@ -198,6 +213,50 @@ namespace MediaInfoKeeper.Patch {
                     }
                 }
             }).ConfigureAwait(false);
+        }
+
+        private static void TriggerStrmHttpPrefetch(string url, string itemName) {
+            var httpClient = Plugin.SharedHttpClient;
+            if (httpClient == null) return;
+
+            try {
+                using var response = httpClient.SendAsync(
+                    new HttpRequestOptions {
+                        Url = url,
+                        TimeoutMs = 5000,
+                        BufferContent = false,
+                        LogErrors = false,
+                        LogRequest = false,
+                        LogResponse = false,
+                        EnableHttpCompression = false,
+                        EnableKeepAlive = false,
+                        EnableDefaultUserAgent = false,
+                        ThrowOnErrorResponse = false
+                    },
+                    "HEAD").GetAwaiter().GetResult();
+
+                logger?.Debug(
+                    "DetailTriggerMediaInfo - Strm HTTP 触发完成: {0}, StatusCode={1}",
+                    itemName,
+                    response?.StatusCode);
+            }
+            catch (Exception ex) {
+                logger?.Debug(
+                    "DetailTriggerMediaInfo - Strm HTTP 触发异常（不影响浏览）: {0}, {1}",
+                    itemName, ex.Message);
+            }
+        }
+
+        private static string ReadStrmUrl(string strmPath) {
+            try {
+                if (!File.Exists(strmPath)) return null;
+                return File.ReadLines(strmPath)
+                    .Select(l => l?.Trim())
+                    .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#", StringComparison.Ordinal));
+            }
+            catch {
+                return null;
+            }
         }
     }
 }
