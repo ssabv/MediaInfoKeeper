@@ -415,6 +415,8 @@ namespace MediaInfoKeeper {
                         .ExportExistingMediaInfoLibraries);
                 scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries =
                     NormalizeScopedLibraries(scheduledTasksEditor.RestoreMediaInfo.RestoreMediaInfoLibraries);
+                scheduledTasksEditor.BangumiCharacter.BangumiCharacterLibraries =
+                    NormalizeScopedLibraries(scheduledTasksEditor.BangumiCharacter.BangumiCharacterLibraries);
             }
 
             if (options.IntroSkip != null) options.IntroSkip.LibraryScope = NormalizeScopedLibraries(options.IntroSkip.LibraryScope);
