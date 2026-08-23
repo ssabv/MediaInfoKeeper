@@ -16,6 +16,10 @@ namespace MediaInfoKeeper.Options {
         [Description("播放剧集时，预加载下一集媒体信息；关闭后不再自动预加载。")]
         public bool EnableMediaInfoPrefetch { get; set; } = true;
 
+        [DisplayName("无条件阻止播放探测")]
+        [Description("屏蔽播放时自动提取媒体信息，换取更快的起播速度，代价是无播放进度。\n开启后，播放信息入口不再放行 ffprobe/ffmpeg，Emby 无法补探缺失的媒体流信息，起播更快但播放器没有进度条。")]
+        public bool BlockPlaybackMediaInfoExtract { get; set; } = false;
+
         [DisplayName("浏览剧集提取媒体信息")]
         [Description("浏览视频或音频详情接口时，若条目没有媒体信息，则后台提取并写入 JSON。")]
         public bool ExtractMediaInfoOnItemDetail { get; set; } = false;
