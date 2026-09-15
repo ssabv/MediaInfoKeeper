@@ -17,13 +17,17 @@ using MediaBrowser.Model.Providers;
 
 namespace MediaInfoKeeper.Patch {
     /// <summary>
-    ///     对远程图片结果做稳定重排，让作品原语言的图片排在前面，优先被 Emby 采用。
-    ///     只调整顺序，不改动 LibraryOptions / RemoteImageQuery。
-    ///     早期实现走 prefix 直接替换首选图片语言并强制 IncludeAllLanguages = false，副作用有两个：
-    ///     一是媒体库里缺该语言图片的作品会拿到空结果（原语言存在但搜不出图），
-    ///     二是手动图片搜索勾选「所有语言」时会被强制关掉，同样搜不出东西。
-    ///     注意：postfix 只能重排本次已经返回的图片；若 Emby 本次没有请求原语言图片，
-    ///     则命中数为 0，此时保持原列表不变（看 debug 日志里的「命中」计数可确认）。
+    ///     让作品原语言的图片排在远程图片列表最前，优先被 Emby 采用。
+    ///     分两步，缺一不可：
+    ///     1. prefix 把 query.IncludeAllLanguages 置为 true。Emby 只在 !IncludeAllLanguages 时按
+    ///        「首选图片语言 + 无语言」过滤结果（ProviderManager.GetAvailableRemoteImages），
+    ///        原语言图片会因不在首选语言里被丢掉，postfix 就没东西可排。
+    ///     2. postfix 把 Language 等于原语言的图片稳定排到最前，其余保持 Emby 原有顺序。
+    ///     之所以不再走「替换 PreferredImageLanguage」，是因为 MovieDb 的图片 Provider 显式丢弃了
+    ///     LibraryOptions（`_ = options.LibraryOptions;`），TMDB 请求根本不会带上这个语言，
+    ///     它只影响 Emby 的本地过滤；一旦该作品在 TMDB 既无该语言图、又无无语言图，结果就是空列表
+    ///     （原语言解析成功却搜不出图），同时无条件 IncludeAllLanguages = false 还会掐掉
+    ///     手动「所有语言」搜索。现在这两条副作用都不存在了。
     /// </summary>
     public static class OriginalPoster {
         private static readonly object InitLock = new();
@@ -128,7 +132,10 @@ namespace MediaInfoKeeper.Patch {
 
             harmony.Patch(
                 method,
-                postfix: new HarmonyMethod(
+                new HarmonyMethod(
+                    typeof(OriginalPoster).GetMethod(nameof(GetAvailableRemoteImagesPrefix),
+                        BindingFlags.Static | BindingFlags.NonPublic)),
+                new HarmonyMethod(
                     typeof(OriginalPoster).GetMethod(nameof(GetAvailableRemoteImagesPostfix),
                         BindingFlags.Static | BindingFlags.NonPublic)));
             PatchLog.Patched(logger, nameof(OriginalPoster), method);
@@ -191,6 +198,23 @@ namespace MediaInfoKeeper.Patch {
                               movieDbEnsureMovieInfo != null &&
                               movieDbEnsureSeriesInfo != null;
             if (!movieDbResolved && logFailure) PatchLog.InitFailed(logger, nameof(OriginalPoster), "MovieDb 原语言入口解析失败");
+        }
+
+        /// <summary>
+        ///     让 Emby 不要按语言把远程图片列表收窄。
+        ///     Emby 仅在 !IncludeAllLanguages 时按「首选图片语言 + 无语言」过滤（见 ProviderManager.GetAvailableRemoteImages），
+        ///     作品原语言不在首选语言里时会被直接丢掉，postfix 就没有东西可排。
+        ///     这个字段在整个 Emby.Providers 里只被那一处过滤读取，置 true 的副作用仅限于「不去掉候选」；
+        ///     它不影响发往 TMDB 的请求（图片 Provider 不传语言），也不影响实际下载张数
+        ///     （自动刮削每个单图类型只下载列表里的第一张，Backdrop 受 backdropLimit 限制）。
+        /// </summary>
+        private static void GetAvailableRemoteImagesPrefix([HarmonyArgument(0)] BaseItem item,
+            ref RemoteImageQuery query) {
+            if (!isEnabled || item == null || query == null) return;
+            if (query.IncludeAllLanguages) return;
+            if (GetTmdbMediaType(item) == null) return;
+
+            query.IncludeAllLanguages = true;
         }
 
         private static void GetAvailableRemoteImagesPostfix([HarmonyArgument(0)] BaseItem item,

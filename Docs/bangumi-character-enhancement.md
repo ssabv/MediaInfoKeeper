@@ -102,18 +102,46 @@ libraryOptions.PreferredImageLanguage = originalLanguage;   // ← 会替换库�
 
 原因：Emby 把 `PreferredImageLanguage` 拼进 TMDB 的 `include_image_language=` 参数，等于把本次图片请求**收窄到只认这一个语言**；一旦 TMDB 上该作品没有这个语言的图，结果就是空的。同时 `IncludeAllLanguages = false` 是**无条件覆盖**，而手动「编辑图片」里勾选「所有语言」正是通过这个开关表达意图的 —— 于是手动搜索也被一起掐死。两个副作用叠加，表现就是「有原语言，但搜不出图」。
 
-**fork 的改法**：与「集图片默认使用无语言」同一套思路 —— 不动请求，只重排结果。
+**fork 的改法**：改为「prefix 放开过滤 + postfix 重排结果」，两步缺一不可。
 
-- 目标方法不变（`ProviderManager.GetAvailableRemoteImages` 的两个重载），但由 prefix 改为 **`HarmonyPostfix`**
-- 经 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值：await 原任务后，把 `Language` 等于原语言的图片稳定排到最前，其余保持原有相对顺序
-- **完全不再改动** `query` 与 `libraryOptions`（`CopyLibraryOptions` 这个反射辅助方法随之删除）
-- 命中数为 0、或等于总数时原样返回
-- debug 日志：`OriginalPoster 重排：item=...，原语言=xx，命中=N，总数=M`
+- 目标方法不变（`ProviderManager.GetAvailableRemoteImages` 的两个重载）
+- **prefix**：`query.IncludeAllLanguages = true`
+- **postfix**：经 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值 —— await 原任务后把 `Language` 等于原语言的图片稳定排到最前，其余保持 Emby 原有相对顺序
+- **完全不再改动** `libraryOptions`（`CopyLibraryOptions` 这个反射辅助方法随之删除）
+- 命中数为 0、或等于总数时原样返回；debug 日志：`OriginalPoster 重排：item=...，原语言=xx，命中=N，总数=M`
 
-### 已知边界
+### 为什么必须两步（基于 Emby 4.10.0.40 反编译结论）
 
-postfix **只能重排本次已经返回的图片**。如果 Emby 本次请求根本没有向 TMDB 索取原语言图片，那么命中数恒为 0，重排是空操作（功能静默不生效）。判断方法：看上面那条 debug 日志的「命中」计数。
-若确认命中恒为 0，说明需要额外在请求侧**追加**（而不是替换）原语言 —— 那是下一步的事，届时务必保持「不覆盖 `IncludeAllLanguages`、不替换库偏好」这两条底线。
+1. **TMDB 侧不受 `PreferredImageLanguage` 影响**。`MovieDbSeriesImageProvider.FetchImages` 调
+   `EnsureSeriesInfo(providerId, null, ct)`、`MovieDbEpisodeImageProvider.GetImages` 调
+   `GetEpisodeInfo(..., null, ...)` —— language 传 `null`，`AddImageLanguageParam` 因此**不附加**
+   `include_image_language`，TMDB 返回该作品的**全部语言图片**。两个 Provider 里还都有
+   `_ = options.LibraryOptions;`，显式丢弃库配置。**所以改 `PreferredImageLanguage` 根本改不到 TMDB 请求**，
+   它只影响下面这条本地过滤 —— 这才是旧实现失效的根因。
+2. **真正决定列表内容的是 Emby 的本地过滤**（`ProviderManager.GetAvailableRemoteImages`）：
+   ```csharp
+   if (preferredImageLanguages.Length != 0 && !query.IncludeAllLanguages)
+       results = results.Where(i => string.IsNullOrEmpty(i.Language) || ContainsLanguage(preferredImageLanguages, i.Language));
+   ```
+   默认（自动刮削）`IncludeAllLanguages = false` → 列表被收窄成「首选图片语言 + 无语言」，
+   **原语言图片被丢掉**，postfix 无东西可排；手动「编辑图片」勾选「所有语言」时该值为 true，本来就是全量。
+   置 true 即跳过这条过滤 —— `IncludeAllLanguages` 在整个 `Emby.Providers` 里**只被这一处读取**，副作用可控。
+3. **选图按列表顺序**。自动刮削 `DownloadImage` 是 `foreach` 列表取**第一张**满足类型与 `minWidth` 的图就 `SaveImage` 并 return，
+   所以 postfix 的顺序直接决定最终落盘的是哪张。
+
+最终退化顺序（Emby 自身排序为：首选语言 `2+(len-idx)` > 无语言 `1` > 其他 `0`，`NormalizeLanguages` 还会在末尾补 `en`）：
+**原语言 → 库首选语言 → en → 无语言 → 其他语言**。
+
+### 流量影响
+
+不额外耗流量：
+
+- **TMDB API 请求量不变** —— 图片列表本来就在已下载的 JSON 里（请求不含 `include_image_language`），
+  这个 flag 只影响本地过滤，不减也不增请求。
+- **图片文件下载张数不变** —— `RefreshFromProvider` 对每个单图类型只下载**一张**，Backdrop 受 `backdropLimit` 限制；
+  而且条目已具备该 Provider 的全部图片时会整体跳过，连 `GetAvailableRemoteImages` 都不调用。
+- 唯一的新增来自「以前被筛成空列表、现在有候选」的条目 —— 那正是本修复的目标。
+- 次要：手动图片选择器的 API 响应 JSON 会变大（候选变多），局域网内可忽略。
 
 ---
 
