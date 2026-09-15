@@ -85,6 +85,38 @@ Emby 向 TMDB 请求图片时用的是 `include_image_language={首选图片语�
 
 ---
 
+## 原语言海报改为结果重排（fork 私有）
+
+> 开关：元数据设置页 → TMDB 组 →「优先原语言海报」，`MetaDataOptions.EnableOriginalPoster`，默认 `false`
+
+`Patch/MetaData/OriginalPoster.cs` **本来是纯上游文件，fork 改过**。上游（以及 fork 的旧版本）用的是 prefix 劫持请求参数：
+
+```csharp
+// 旧实现（已废弃）
+query.IncludeAllLanguages = false;                          // ← 会覆盖调用方
+libraryOptions = CopyLibraryOptions(libraryOptions);
+libraryOptions.PreferredImageLanguage = originalLanguage;   // ← 会替换库偏好
+```
+
+**这个实现的副作用（就是线上遇到的故障）**：原语言能解析出来，但**图片搜不出来**。
+
+原因：Emby 把 `PreferredImageLanguage` 拼进 TMDB 的 `include_image_language=` 参数，等于把本次图片请求**收窄到只认这一个语言**；一旦 TMDB 上该作品没有这个语言的图，结果就是空的。同时 `IncludeAllLanguages = false` 是**无条件覆盖**，而手动「编辑图片」里勾选「所有语言」正是通过这个开关表达意图的 —— 于是手动搜索也被一起掐死。两个副作用叠加，表现就是「有原语言，但搜不出图」。
+
+**fork 的改法**：与「集图片默认使用无语言」同一套思路 —— 不动请求，只重排结果。
+
+- 目标方法不变（`ProviderManager.GetAvailableRemoteImages` 的两个重载），但由 prefix 改为 **`HarmonyPostfix`**
+- 经 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值：await 原任务后，把 `Language` 等于原语言的图片稳定排到最前，其余保持原有相对顺序
+- **完全不再改动** `query` 与 `libraryOptions`（`CopyLibraryOptions` 这个反射辅助方法随之删除）
+- 命中数为 0、或等于总数时原样返回
+- debug 日志：`OriginalPoster 重排：item=...，原语言=xx，命中=N，总数=M`
+
+### 已知边界
+
+postfix **只能重排本次已经返回的图片**。如果 Emby 本次请求根本没有向 TMDB 索取原语言图片，那么命中数恒为 0，重排是空操作（功能静默不生效）。判断方法：看上面那条 debug 日志的「命中」计数。
+若确认命中恒为 0，说明需要额外在请求侧**追加**（而不是替换）原语言 —— 那是下一步的事，届时务必保持「不覆盖 `IncludeAllLanguages`、不替换库偏好」这两条底线。
+
+---
+
 ## 实现原理
 
 ### 数据流
@@ -148,7 +180,7 @@ Emby 元数据刷新 ──▶ BangumiCharacterProvider.FetchAsync()
 | `ScheduledTask/BangumiCharacterRefreshTask.cs` | 133 | 独立计划任务：批量触发元数据刷新 |
 | `Patch/MetaData/EpisodeNeutralImage.cs` | 159 | 集图片无语言优先：postfix 重排远程图片结果（见下方「集图片默认使用无语言」） |
 
-### 编辑文件（11 个，需按模式插入代码）
+### 编辑文件（12 个，需按模式插入代码）
 
 | 文件 | 改动说明 |
 |------|----------|
@@ -158,6 +190,7 @@ Emby 元数据刷新 ──▶ BangumiCharacterProvider.FetchAsync()
 | `Options/GitHubOptions.cs` | `ProjectUrl` 改为 ssabv 地址 |
 | `Options/View/MainPageView.cs` | 添加 `BangumiCharacterDialogCommandId`/`BangumiCharacterRunCommandId` 常量 + DialogView/RunCommand 分支 |
 | `Options/View/MainPageScheduledTaskDialogs.cs` | 文件末尾添加 `BangumiCharacterTaskDialogView` 类 |
+| `Patch/MetaData/OriginalPoster.cs` | **本是上游文件，fork 已改**：把 prefix 劫持请求参数改为 postfix 结果重排（详见下方「原语言海报改为结果重排」）；同步上游后必须重新套用，否则会退回旧实现 |
 | `Patch/PatchManager.cs` | 在 `OriginalPoster` registration 之后添加 `EpisodeNeutralImage` registration |
 | `Plugin.cs` | `NormalizePluginOptions` 中添加 `BangumiCharacter.BangumiCharacterLibraries` 规范化 |
 | `Patch/Enhance/ChineseSearch.cs` | 3 处 `LoadTokenizerExtension(connection, false)` → `true` |
@@ -291,7 +324,7 @@ echo "UPSTREAM_BASE=$UPSTREAM_BASE  THEIRS=$THEIRS"
 # 准备 base / theirs 目录（Windows 上 M 用 D:/... 形式，见下方注意）
 M=D:/mik-merge
 mkdir -p "$M/base" "$M/theirs"
-FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Patch/PatchManager.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
+FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Patch/MetaData/OriginalPoster.cs Patch/PatchManager.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
 for f in "${FILES[@]}"; do
   d=$(dirname "$f")
   mkdir -p "$M/base/$d" "$M/theirs/$d"

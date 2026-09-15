@@ -17,7 +17,13 @@ using MediaBrowser.Model.Providers;
 
 namespace MediaInfoKeeper.Patch {
     /// <summary>
-    ///     在远程图片统一入口临时改用作品原语言作为图片语言。
+    ///     对远程图片结果做稳定重排，让作品原语言的图片排在前面，优先被 Emby 采用。
+    ///     只调整顺序，不改动 LibraryOptions / RemoteImageQuery。
+    ///     早期实现走 prefix 直接替换首选图片语言并强制 IncludeAllLanguages = false，副作用有两个：
+    ///     一是媒体库里缺该语言图片的作品会拿到空结果（原语言存在但搜不出图），
+    ///     二是手动图片搜索勾选「所有语言」时会被强制关掉，同样搜不出东西。
+    ///     注意：postfix 只能重排本次已经返回的图片；若 Emby 本次没有请求原语言图片，
+    ///     则命中数为 0，此时保持原列表不变（看 debug 日志里的「命中」计数可确认）。
     /// </summary>
     public static class OriginalPoster {
         private static readonly object InitLock = new();
@@ -103,8 +109,8 @@ namespace MediaInfoKeeper.Patch {
                     "OriginalPoster.ProviderManager.GetAvailableRemoteImages(async)");
 
                 var patched = 0;
-                patched += PatchMethod(providerGetAvailableRemoteImages, nameof(GetAvailableRemoteImagesPrefix));
-                patched += PatchMethod(providerGetAvailableRemoteImagesAsync, nameof(GetAvailableRemoteImagesPrefix));
+                patched += PatchMethod(providerGetAvailableRemoteImages);
+                patched += PatchMethod(providerGetAvailableRemoteImagesAsync);
 
                 IsReady = patched > 0;
                 if (!IsReady) PatchLog.InitFailed(logger, nameof(OriginalPoster), "Provider hooks 安装失败");
@@ -117,13 +123,14 @@ namespace MediaInfoKeeper.Patch {
             }
         }
 
-        private static int PatchMethod(MethodInfo method, string prefix) {
+        private static int PatchMethod(MethodInfo method) {
             if (method == null || harmony == null) return 0;
 
-            var prefixMethod =
-                new HarmonyMethod(
-                    typeof(OriginalPoster).GetMethod(prefix, BindingFlags.Static | BindingFlags.NonPublic));
-            harmony.Patch(method, prefixMethod);
+            harmony.Patch(
+                method,
+                postfix: new HarmonyMethod(
+                    typeof(OriginalPoster).GetMethod(nameof(GetAvailableRemoteImagesPostfix),
+                        BindingFlags.Static | BindingFlags.NonPublic)));
             PatchLog.Patched(logger, nameof(OriginalPoster), method);
             return 1;
         }
@@ -186,19 +193,38 @@ namespace MediaInfoKeeper.Patch {
             if (!movieDbResolved && logFailure) PatchLog.InitFailed(logger, nameof(OriginalPoster), "MovieDb 原语言入口解析失败");
         }
 
-        [HarmonyPrefix]
-        private static void GetAvailableRemoteImagesPrefix(BaseItem item, ref LibraryOptions libraryOptions,
-            ref RemoteImageQuery query, CancellationToken cancellationToken) {
-            if (!isEnabled || item == null || libraryOptions == null || query == null) return;
+        private static void GetAvailableRemoteImagesPostfix([HarmonyArgument(0)] BaseItem item,
+            ref Task<IEnumerable<RemoteImageInfo>> __result) {
+            if (!isEnabled || __result == null || item == null) return;
 
-            var originalLanguage = GetOriginalLanguage(item, cancellationToken);
-            if (string.IsNullOrWhiteSpace(originalLanguage)) return;
+            __result = PreferOriginalLanguageAsync(__result, item);
+        }
 
-            query.IncludeAllLanguages = false;
-            libraryOptions = CopyLibraryOptions(libraryOptions);
-            libraryOptions.PreferredImageLanguage = originalLanguage;
-            logger?.Debug("OriginalPoster image language: item={0}, originalLanguage={1}", GetItemLabel(item),
-                originalLanguage);
+        private static async Task<IEnumerable<RemoteImageInfo>> PreferOriginalLanguageAsync(
+            Task<IEnumerable<RemoteImageInfo>> task, BaseItem item) {
+            var images = await task.ConfigureAwait(false);
+            if (images == null) return null;
+
+            var list = images as IList<RemoteImageInfo> ?? images.ToList();
+            if (list.Count < 2) return list;
+
+            var originalLanguage = GetOriginalLanguage(item, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(originalLanguage)) return list;
+
+            var matched = list.Count(image => IsLanguageMatch(image, originalLanguage));
+            if (matched == 0 || matched == list.Count) return list;
+
+            var ordered = new List<RemoteImageInfo>(list.Count);
+            ordered.AddRange(list.Where(image => IsLanguageMatch(image, originalLanguage)));
+            ordered.AddRange(list.Where(image => !IsLanguageMatch(image, originalLanguage)));
+
+            logger?.Debug("OriginalPoster 重排：item={0}，原语言={1}，命中={2}，总数={3}",
+                GetItemLabel(item), originalLanguage, matched, list.Count);
+            return ordered;
+        }
+
+        private static bool IsLanguageMatch(RemoteImageInfo image, string language) {
+            return string.Equals(image?.Language, language, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetOriginalLanguage(BaseItem item, CancellationToken cancellationToken) {
@@ -298,17 +324,6 @@ namespace MediaInfoKeeper.Patch {
             }
 
             return null;
-        }
-
-        private static LibraryOptions CopyLibraryOptions(LibraryOptions source) {
-            var copy = new LibraryOptions();
-            foreach (var property in typeof(LibraryOptions).GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-                if (!property.CanRead || !property.CanWrite) continue;
-
-                property.SetValue(copy, property.GetValue(source));
-            }
-
-            return copy;
         }
 
         private static string NormalizeLanguage(string language) {
