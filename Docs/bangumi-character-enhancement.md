@@ -558,7 +558,15 @@ gh workflow run ci.yml -f channel=stable -R ssabv/MediaInfoKeeper
 
 ## 版本变更记录
 
-### v1.7.5.5-beta.2 (当前)
+### v1.7.5.5-beta.3 (当前)
+
+- 上游基准: 不变，仍为 v1.7.5.4 (honue, `148994c`)。base 恒为 `1.7.5.5`，仅后缀递增
+- 修复: 剧集「原语言」被解析成英文，导致英文海报排第一 —— 剧集 DTO `SeriesRootObject` **没有 `original_language` 属性**（只有电影 DTO `CompleteMovieData` 有），旧代码 `GetFirstString(languages) ?? original_language` 的后半截是死代码，等价于直接取 TMDB `languages[0]`，而该数组是 spoken/available 列表、顺序不可靠
+- 变更: 剧集改为三级取值链 —— `origin_country` 映射（新增 `OriginCountryLanguages`，约 45 国）→ `languages` 里第一个非 `en` 的 → `languages[0]`；**电影路径不变**，仍直读 `original_language`
+- 实证: `tv/278043`《正反対な君と僕》`original_language=ja` 而 `languages=['en','ja']`。60 部热门剧实测映射链 60/60 命中权威值；旧逻辑在 `en` 排首位的作品上出错（Squid Game→en、Ip Man→en）
+- 验证: 本机 `dotnet build` 对 net8.0 / net6.0 均 0 警告 0 错误
+
+### v1.7.5.5-beta.2
 
 - 上游基准: 不变，仍为 v1.7.5.4 (honue, `148994c`)。`AssemblyVersion` 未变 → base 恒为 `1.7.5.5`，仅后缀递增
 - 修复: 「优先原语言海报」在部分作品上图片搜不出来的问题 —— 旧 prefix 替换 `PreferredImageLanguage` 并强制 `IncludeAllLanguages = false`，会把本地图片列表筛空，同时掐掉手动「所有语言」搜索
