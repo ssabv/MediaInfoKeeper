@@ -469,12 +469,19 @@ gh workflow run ci.yml -f channel=stable -R ssabv/MediaInfoKeeper
 
 ## 版本变更记录
 
-### v1.7.5.4-bangumi (当前)
+### v1.7.5.5-beta.1 (当前)
+
+- 上游基准: 不变，仍为 v1.7.5.4 (honue, `148994c`)。本版是 fork 自有功能，`AssemblyVersion` 未变，CI 因此判为 beta 通道，产出预发布 `v1.7.5.5-beta.1`
+- 新增: 集图片默认使用无语言 — `Patch/MetaData/EpisodeNeutralImage.cs`（postfix 重排集的远程图片）+ `MetaDataOptions.EnableEpisodeNeutralImage` 选项 + `PatchManager` 注册
+- 变更: 修改文件清单新增文件 3 → 4、编辑文件 10 → 11（新增 `Patch/PatchManager.cs`），并补进同步指南方法 A 的 `FILES`
+- 验证: 本机 `dotnet build` 对 net8.0 / net6.0 均 0 警告 0 错误
+
+### v1.7.5.4-bangumi
 
 - 上游基准: v1.7.5.4 (honue, `148994c`)
 - 变更: 三方合并同步至 v1.7.5.4，保持 Bangumi 所有修改（11 个文件与 fork 版本逐字节一致）
 - 变更: 自动更新地址 4 处改为 ssabv/MediaInfoKeeper
-- 注意: 上游 v1.7.5.4 把 `Version.json` 的 `minEmbyVersion` 抬到 `4.10.0.40`，并适配了 Emby 4.10.0.40 内部方法签名（`FfProcessGuard`/`IsoProbe`/`OriginalPoster`）。Emby 4.9.x 环境需自行评估兼容性
+- 注意: 上游 v1.7.5.4 把 `Version.json` 的 `minEmbyVersion` 抬到 `4.10.0.40`，并按 4.10.0.40 适配了内部方法签名（`FfProcessGuard`/`IsoProbe`/`OriginalPoster`）。**Emby 4.9.x 不再受支持** —— `PatchMethodResolver` 只做精确签名匹配且无多版本回退，4.9 上多项 patch 会解析失败（例：`MovieDbProvider.EnsureMovieInfo` 在 4.10 多了 `bool` 入参，解析不到会让 `OriginalPoster` 整条链静默失效）
 
 ### v1.7.5.3-bangumi
 
