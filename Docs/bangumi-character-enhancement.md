@@ -530,9 +530,9 @@ gh workflow run ci.yml -f channel=stable -R ssabv/MediaInfoKeeper
 
 ## 版本变更记录
 
-### v1.7.5.6-beta.1 (当前)
+### v1.7.5.5-beta.2 (当前)
 
-- 上游基准: 不变，仍为 v1.7.5.4 (honue, `148994c`)。`AssemblyVersion` 未变，仍走 beta 通道
+- 上游基准: 不变，仍为 v1.7.5.4 (honue, `148994c`)。`AssemblyVersion` 未变 → base 恒为 `1.7.5.5`，仅后缀递增
 - 修复: 「优先原语言海报」在部分作品上图片搜不出来的问题 —— 旧 prefix 替换 `PreferredImageLanguage` 并强制 `IncludeAllLanguages = false`，会把本地图片列表筛空，同时掐掉手动「所有语言」搜索
 - 变更: `Patch/MetaData/OriginalPoster.cs` 改为「prefix 置 `IncludeAllLanguages = true` + postfix 原语言优先重排」，删除 `CopyLibraryOptions`；该文件已由纯上游文件变为 **fork 已改文件**（编辑文件 11 → 12，见清单）
 - 依据: 机制结论来自对 Emby 4.10.0.40 的反编译，细节见上文「原语言海报改为结果重排（fork 私有）」一节
