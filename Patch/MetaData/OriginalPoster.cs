@@ -30,6 +30,24 @@ namespace MediaInfoKeeper.Patch {
     ///     手动「所有语言」搜索。现在这两条副作用都不存在了。
     /// </summary>
     public static class OriginalPoster {
+        /// <summary>
+        ///     剧集出口国家 → 原语言。仅用于剧集（其 DTO 没有 original_language），命中不了再退化到 languages。
+        /// </summary>
+        private static readonly Dictionary<string, string> OriginCountryLanguages =
+            new(StringComparer.OrdinalIgnoreCase) {
+                ["JP"] = "ja",
+                ["CN"] = "zh", ["TW"] = "zh", ["HK"] = "zh", ["MO"] = "zh", ["SG"] = "zh",
+                ["KR"] = "ko", ["KP"] = "ko",
+                ["US"] = "en", ["GB"] = "en", ["CA"] = "en", ["AU"] = "en", ["NZ"] = "en", ["IE"] = "en",
+                ["FR"] = "fr", ["DE"] = "de", ["AT"] = "de", ["IT"] = "it",
+                ["ES"] = "es", ["MX"] = "es", ["AR"] = "es", ["CL"] = "es", ["CO"] = "es",
+                ["BR"] = "pt", ["PT"] = "pt", ["RU"] = "ru", ["UA"] = "uk", ["PL"] = "pl",
+                ["NL"] = "nl", ["SE"] = "sv", ["NO"] = "no", ["DK"] = "da", ["FI"] = "fi",
+                ["TH"] = "th", ["VN"] = "vi", ["IN"] = "hi", ["ID"] = "id", ["PH"] = "tl",
+                ["MY"] = "ms", ["TR"] = "tr", ["SA"] = "ar", ["EG"] = "ar", ["IL"] = "he",
+                ["GR"] = "el", ["CZ"] = "cs", ["HU"] = "hu", ["RO"] = "ro"
+            };
+
         private static readonly object InitLock = new();
 
         private static Harmony harmony;
@@ -325,9 +343,43 @@ namespace MediaInfoKeeper.Patch {
                 return GetStringProperty(result, "original_language");
 
             if (string.Equals(mediaType, "tv", StringComparison.OrdinalIgnoreCase))
-                return GetFirstString(result.GetType()
-                           .GetProperty("languages", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result)) ??
-                       GetStringProperty(result, "original_language");
+                return GetSeriesOriginalLanguage(result);
+
+            return null;
+        }
+
+        /// <summary>
+        ///     推断剧集的原语言。
+        ///     剧集的 DTO（SeriesRootObject）**没有 original_language 属性**（只有电影 DTO 有），
+        ///     所以不能像电影那样直接读权威字段，只能按 origin_country 映射，再退化到 languages。
+        ///     注意不能直接用 languages[0]：它是 TMDB 的 spoken/available 语言列表，顺序不可靠。
+        ///     例：tv/278043「正反対な君と僕」original_language = ja，但 languages = ['en','ja']、
+        ///     spoken_languages 里 en 也在前，取 languages[0] 会把英文当成原语言。
+        /// </summary>
+        private static string GetSeriesOriginalLanguage(object result) {
+            var byCountry = MapOriginCountryToLanguage(result);
+            if (!string.IsNullOrWhiteSpace(byCountry)) return byCountry;
+
+            var languages = GetStrings(result.GetType()
+                .GetProperty("languages", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result));
+            if (languages.Count == 0) return null;
+
+            foreach (var language in languages)
+                if (!string.Equals(language, "en", StringComparison.OrdinalIgnoreCase))
+                    return language;
+
+            return languages[0];
+        }
+
+        private static string MapOriginCountryToLanguage(object result) {
+            var countries = GetStrings(result.GetType()
+                .GetProperty("origin_country", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result));
+
+            foreach (var country in countries) {
+                var code = country?.Trim().ToUpperInvariant();
+                if (!string.IsNullOrEmpty(code) && OriginCountryLanguages.TryGetValue(code, out var language))
+                    return language;
+            }
 
             return null;
         }
@@ -339,15 +391,16 @@ namespace MediaInfoKeeper.Patch {
                 ?.ToString();
         }
 
-        private static string GetFirstString(object source) {
-            if (!(source is IEnumerable values)) return null;
+        private static List<string> GetStrings(object source) {
+            var result = new List<string>();
+            if (!(source is IEnumerable values)) return result;
 
             foreach (var value in values) {
                 var text = value?.ToString();
-                if (!string.IsNullOrWhiteSpace(text)) return text;
+                if (!string.IsNullOrWhiteSpace(text)) result.Add(text);
             }
 
-            return null;
+            return result;
         }
 
         private static string NormalizeLanguage(string language) {

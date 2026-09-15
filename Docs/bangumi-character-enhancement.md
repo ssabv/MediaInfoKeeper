@@ -143,6 +143,34 @@ libraryOptions.PreferredImageLanguage = originalLanguage;   // ← 会替换库�
 - 唯一的新增来自「以前被筛成空列表、现在有候选」的条目 —— 那正是本修复的目标。
 - 次要：手动图片选择器的 API 响应 JSON 会变大（候选变多），局域网内可忽略。
 
+### 剧集原语言的取值（易踩坑）
+
+**电影**直接用 TMDB 的权威字段 `original_language`（`CompleteMovieData.original_language`）。
+
+**剧集不行** —— `SeriesRootObject`（`EnsureSeriesInfo` 的返回类型）**没有 `original_language` 属性**
+（反编译确认：整个 MovieDb.dll 里只有 `CompleteMovieData` 带这个字段）。
+fork 早期实现写成 `GetFirstString(languages) ?? original_language`，后半截对剧集是**死代码**，
+等于直接取 TMDB `languages[0]`。而 `languages` 是 spoken / available 语言列表，**顺序不可靠**。
+
+实证（`tv/278043`《正反対な君と僕》）：
+
+| 字段 | 值 |
+|------|-----|
+| `original_language` | `ja` |
+| `languages` | **`['en','ja']`** ← 英文在前 |
+| `spoken_languages` | `[en, ja]` |
+| `origin_country` | `['JP']` |
+
+取 `languages[0]` 会得到 `en`，把英文当成原语言排到最前 —— 这就是「手动能筛到原语言、但英文排第一」的成因。
+
+**fork 的取值链**：
+
+1. **`origin_country` → 语言映射**（`OriginCountryLanguages`，覆盖 JP/CN/TW/HK/KR/US/GB/FR/DE/IT/ES/BR/RU/TH/VN/IN 等约 45 个常见国家）。该字段本来就在 DTO 里，无需额外请求，且 `['JP'] → ja` 正是本例要的结果。
+2. 映射不到时，取 `languages` 里**第一个不是 `en` 的**（本例 `['en','ja']` → `ja`）。
+3. 再不行才用 `languages[0]`。
+
+电影路径不受影响。若以后 TMDB 给 `SeriesRootObject` 补上 `original_language`，应优先改回直读该字段。
+
 ---
 
 ## 实现原理
