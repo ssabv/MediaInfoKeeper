@@ -55,6 +55,124 @@ var options = new MetadataRefreshOptions(...)
 
 ---
 
+## 集图片默认使用无语言（fork 私有）
+
+> 开关：元数据设置页 → TMDB 组 →「集图片默认使用无语言」，`MetaDataOptions.EnableEpisodeNeutralImage`，默认 `false`
+
+把**集（Episode）**远程图片结果里的无语言版本稳定排到最前，让 Emby 默认采用无文字版图片，同时保留其余语言图片可选。
+
+### 为什么是重排而不是改语言偏好
+
+Emby 向 TMDB 请求图片时用的是 `include_image_language={首选图片语言},null` —— 首选语言和无语言（`null`）**本来就在同一个结果集里**。所以不需要动语言偏好，只要对结果做一次稳定分区、把无语言排到前面即可：
+
+- **不改变可选范围**：图片选择器里其它语言仍然可选，不会出现「某集一个图都没有」
+- **不改动库级设置**：`LibraryOptions.PreferredImageLanguage` 保持原样，避免污染全局库配置
+- **与「优先原语言海报」兼容**：那个补丁走 prefix 改入参（并复制 `LibraryOptions` 防污染），本补丁走 postfix 改结果，两者可同时开启
+
+### 挂载点与实现
+
+- 目标方法：`Emby.Providers.Manager.ProviderManager.GetAvailableRemoteImages` 的**两个重载**（4 参 sync / 5 参含 `IDirectoryService` 的 async），使用 `HarmonyPostfix`
+- 只处理 `item is Episode`，其它条目类型直接放行
+- 通过 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值：await 原任务后做一次稳定分区（无语言在前，其余保持原有相对顺序），返回物化后的 `List<RemoteImageInfo>`
+- 无语言判据：`string.IsNullOrWhiteSpace(image.Language)`
+- 无语言数量为 0、或等于总数时直接返回原列表，不做多余改动
+- Harmony 实例 `mediainfokeeper.episodeneutralimage`，hook 只装一次；`Configure` 只翻 `isEnabled` 标志 → **运行时开关不需要重启，也不需要重装补丁**
+- 命中重排时打 debug 日志：`EpisodeNeutralImage 重排：item=...，无语言=N，总数=M`
+
+### 注意
+
+只影响**远程图片列表的获取**，不改已落盘的本地图片 —— 开启后需要**重新刷新集的图片**才看得到效果。
+
+---
+
+## 原语言海报改为结果重排（fork 私有）
+
+> 开关：元数据设置页 → TMDB 组 →「优先原语言海报」，`MetaDataOptions.EnableOriginalPoster`，默认 `false`
+
+`Patch/MetaData/OriginalPoster.cs` **本来是纯上游文件，fork 改过**。上游（以及 fork 的旧版本）用的是 prefix 劫持请求参数：
+
+```csharp
+// 旧实现（已废弃）
+query.IncludeAllLanguages = false;                          // ← 会覆盖调用方
+libraryOptions = CopyLibraryOptions(libraryOptions);
+libraryOptions.PreferredImageLanguage = originalLanguage;   // ← 会替换库偏好
+```
+
+**这个实现的副作用（就是线上遇到的故障）**：原语言能解析出来，但**图片搜不出来**。
+
+原因：Emby 把 `PreferredImageLanguage` 拼进 TMDB 的 `include_image_language=` 参数，等于把本次图片请求**收窄到只认这一个语言**；一旦 TMDB 上该作品没有这个语言的图，结果就是空的。同时 `IncludeAllLanguages = false` 是**无条件覆盖**，而手动「编辑图片」里勾选「所有语言」正是通过这个开关表达意图的 —— 于是手动搜索也被一起掐死。两个副作用叠加，表现就是「有原语言，但搜不出图」。
+
+**fork 的改法**：改为「prefix 放开过滤 + postfix 重排结果」，两步缺一不可。
+
+- 目标方法不变（`ProviderManager.GetAvailableRemoteImages` 的两个重载）
+- **prefix**：`query.IncludeAllLanguages = true`
+- **postfix**：经 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值 —— await 原任务后把 `Language` 等于原语言的图片稳定排到最前，其余保持 Emby 原有相对顺序
+- **完全不再改动** `libraryOptions`（`CopyLibraryOptions` 这个反射辅助方法随之删除）
+- 命中数为 0、或等于总数时原样返回；debug 日志：`OriginalPoster 重排：item=...，原语言=xx，命中=N，总数=M`
+
+### 为什么必须两步（基于 Emby 4.10.0.40 反编译结论）
+
+1. **TMDB 侧不受 `PreferredImageLanguage` 影响**。`MovieDbSeriesImageProvider.FetchImages` 调
+   `EnsureSeriesInfo(providerId, null, ct)`、`MovieDbEpisodeImageProvider.GetImages` 调
+   `GetEpisodeInfo(..., null, ...)` —— language 传 `null`，`AddImageLanguageParam` 因此**不附加**
+   `include_image_language`，TMDB 返回该作品的**全部语言图片**。两个 Provider 里还都有
+   `_ = options.LibraryOptions;`，显式丢弃库配置。**所以改 `PreferredImageLanguage` 根本改不到 TMDB 请求**，
+   它只影响下面这条本地过滤 —— 这才是旧实现失效的根因。
+2. **真正决定列表内容的是 Emby 的本地过滤**（`ProviderManager.GetAvailableRemoteImages`）：
+   ```csharp
+   if (preferredImageLanguages.Length != 0 && !query.IncludeAllLanguages)
+       results = results.Where(i => string.IsNullOrEmpty(i.Language) || ContainsLanguage(preferredImageLanguages, i.Language));
+   ```
+   默认（自动刮削）`IncludeAllLanguages = false` → 列表被收窄成「首选图片语言 + 无语言」，
+   **原语言图片被丢掉**，postfix 无东西可排；手动「编辑图片」勾选「所有语言」时该值为 true，本来就是全量。
+   置 true 即跳过这条过滤 —— `IncludeAllLanguages` 在整个 `Emby.Providers` 里**只被这一处读取**，副作用可控。
+3. **选图按列表顺序**。自动刮削 `DownloadImage` 是 `foreach` 列表取**第一张**满足类型与 `minWidth` 的图就 `SaveImage` 并 return，
+   所以 postfix 的顺序直接决定最终落盘的是哪张。
+
+最终退化顺序（Emby 自身排序为：首选语言 `2+(len-idx)` > 无语言 `1` > 其他 `0`，`NormalizeLanguages` 还会在末尾补 `en`）：
+**原语言 → 库首选语言 → en → 无语言 → 其他语言**。
+
+### 流量影响
+
+不额外耗流量：
+
+- **TMDB API 请求量不变** —— 图片列表本来就在已下载的 JSON 里（请求不含 `include_image_language`），
+  这个 flag 只影响本地过滤，不减也不增请求。
+- **图片文件下载张数不变** —— `RefreshFromProvider` 对每个单图类型只下载**一张**，Backdrop 受 `backdropLimit` 限制；
+  而且条目已具备该 Provider 的全部图片时会整体跳过，连 `GetAvailableRemoteImages` 都不调用。
+- 唯一的新增来自「以前被筛成空列表、现在有候选」的条目 —— 那正是本修复的目标。
+- 次要：手动图片选择器的 API 响应 JSON 会变大（候选变多），局域网内可忽略。
+
+### 剧集原语言的取值（易踩坑）
+
+**电影**直接用 TMDB 的权威字段 `original_language`（`CompleteMovieData.original_language`）。
+
+**剧集不行** —— `SeriesRootObject`（`EnsureSeriesInfo` 的返回类型）**没有 `original_language` 属性**
+（反编译确认：整个 MovieDb.dll 里只有 `CompleteMovieData` 带这个字段）。
+fork 早期实现写成 `GetFirstString(languages) ?? original_language`，后半截对剧集是**死代码**，
+等于直接取 TMDB `languages[0]`。而 `languages` 是 spoken / available 语言列表，**顺序不可靠**。
+
+实证（`tv/278043`《正反対な君と僕》）：
+
+| 字段 | 值 |
+|------|-----|
+| `original_language` | `ja` |
+| `languages` | **`['en','ja']`** ← 英文在前 |
+| `spoken_languages` | `[en, ja]` |
+| `origin_country` | `['JP']` |
+
+取 `languages[0]` 会得到 `en`，把英文当成原语言排到最前 —— 这就是「手动能筛到原语言、但英文排第一」的成因。
+
+**fork 的取值链**：
+
+1. **`origin_country` → 语言映射**（`OriginCountryLanguages`，覆盖 JP/CN/TW/HK/KR/US/GB/FR/DE/IT/ES/BR/RU/TH/VN/IN 等约 45 个常见国家）。该字段本来就在 DTO 里，无需额外请求，且 `['JP'] → ja` 正是本例要的结果。
+2. 映射不到时，取 `languages` 里**第一个不是 `en` 的**（本例 `['en','ja']` → `ja`）。
+3. 再不行才用 `languages[0]`。
+
+电影路径不受影响。若以后 TMDB 给 `SeriesRootObject` 补上 `original_language`，应优先改回直读该字段。
+
+---
+
 ## 实现原理
 
 ### 数据流
@@ -109,24 +227,27 @@ Emby 元数据刷新 ──▶ BangumiCharacterProvider.FetchAsync()
 
 ## 修改文件清单
 
-### 新增文件（3 个，直接复制即可）
+### 新增文件（4 个，直接复制即可）
 
 | 文件 | 行数 | 说明 |
 |------|------|------|
-| `Common/BangumiApiClient.cs` | 180 | Bangumi REST API 客户端：搜索、角色列表、角色详情、人物详情 |
-| `Provider/BangumiCharacterProvider.cs` | 539 | 核心 Provider：实现 ICustomMetadataProvider，接入 Emby 元数据管线 |
-| `ScheduledTask/BangumiCharacterRefreshTask.cs` | 117 | 独立计划任务：批量触发元数据刷新 |
+| `Common/BangumiApiClient.cs` | 249 | Bangumi REST API 客户端：搜索、角色列表、角色详情、人物详情 |
+| `Provider/BangumiCharacterProvider.cs` | 726 | 核心 Provider：实现 ICustomMetadataProvider，接入 Emby 元数据管线 |
+| `ScheduledTask/BangumiCharacterRefreshTask.cs` | 133 | 独立计划任务：批量触发元数据刷新 |
+| `Patch/MetaData/EpisodeNeutralImage.cs` | 159 | 集图片无语言优先：postfix 重排远程图片结果（见下方「集图片默认使用无语言」） |
 
-### 编辑文件（10 个，需按模式插入代码）
+### 编辑文件（12 个，需按模式插入代码）
 
 | 文件 | 改动说明 |
 |------|----------|
-| `Options/MetaDataOptions.cs` | 在 `TvdbFallbackLanguages` 之后、`Initialize()` 之前添加 3 个 Bangumi 属性 |
+| `Options/MetaDataOptions.cs` | 在 `TvdbFallbackLanguages` 之后、`Initialize()` 之前添加 3 个 Bangumi 属性；另在 `EnableOriginalPoster` 之后添加 `EnableEpisodeNeutralImage` 属性，并加入 `AddGroup("TMDB", ...)` |
 | `Options/MainPageOptions.cs` | 添加 `BangumiCharacterTaskEditorOptions` 类 + `ScheduledTaskEditorOptions.BangumiCharacter` 属性 + `EnsureScheduledTaskEditors`/`PrepareScheduledTaskEditorForUi`/`BuildScheduledTaskEntries` 中的对应代码 |
 | `Options/MainPageOptions.cs` | `UpdatePluginProjectUrl` 改为 ssabv 地址 |
 | `Options/GitHubOptions.cs` | `ProjectUrl` 改为 ssabv 地址 |
 | `Options/View/MainPageView.cs` | 添加 `BangumiCharacterDialogCommandId`/`BangumiCharacterRunCommandId` 常量 + DialogView/RunCommand 分支 |
 | `Options/View/MainPageScheduledTaskDialogs.cs` | 文件末尾添加 `BangumiCharacterTaskDialogView` 类 |
+| `Patch/MetaData/OriginalPoster.cs` | **本是上游文件，fork 已改**：把 prefix 劫持请求参数改为 postfix 结果重排（详见下方「原语言海报改为结果重排」）；同步上游后必须重新套用，否则会退回旧实现 |
+| `Patch/PatchManager.cs` | 在 `OriginalPoster` registration 之后添加 `EpisodeNeutralImage` registration |
 | `Plugin.cs` | `NormalizePluginOptions` 中添加 `BangumiCharacter.BangumiCharacterLibraries` 规范化 |
 | `Patch/Enhance/ChineseSearch.cs` | 3 处 `LoadTokenizerExtension(connection, false)` → `true` |
 | `ScheduledTask/UpdatePluginTask.cs` | `RepoVersionUrl` 改为 ssabv 地址 |
@@ -199,6 +320,8 @@ Emby 元数据刷新 ──▶ BangumiCharacterProvider.FetchAsync()
 5. **构建前先恢复依赖文件** — 新增的 Bangumi 文件在 `git reset --hard` 后会丢失，需从备份恢复
 6. **三方合并 base 必须用上游真实基准 commit** — fork 可能重写了本地 tag（指向含 Bangumi 的同步提交，而非上游干净版本）。例：本地 `v1.7.5.3` = `58a2442`（fork 重写），而上游真实 `v1.7.5.3` = `92a7721`（在 `upstream/master` 历史中）。三方合并时 base 应使用上游真实 commit，用 `git rev-parse upstream/<基准 tag>` 或直接取 `upstream/master` 中的「vX.Y.Z」提交确认，**不要**用本地 tag
 7. **Windows 下 `git merge-file` 不接受 MSYS 路径** — `/d/foo/...` 会报 `Could not stat`，必须用 `D:/foo/...` 形式的 Windows 路径
+8. **一次推送 = 一个 beta** — `ci.yml` 比较 push 前后 csproj 的 `AssemblyVersion`：变了 = stable（tag `vX.Y.Z`）；没变 = beta，base **恒为 `AssemblyVersion 末位 + 1`**，连发时只有后缀递增（`beta.1` → `beta.2` → `beta.3`，**不会**进位成下一个版本号）。被 `paths-ignore` 忽略的文件（`Docs/**`、`README.md`、`.gitignore`、`LICENSE`、`.github/workflows/**`）单独推不会触发构建，但只要夹带 `.cs` 就会被判 beta —— 所以**版本记录要和代码改动放进同一个 push**
+9. **`run` 被取消时直接重跑** — `POST /repos/{owner}/{repo}/actions/runs/{id}/rerun`（需带 token），tag 会按当时的规则正确计算，不必重新提交或重新推送
 
 ### 1. 保存当前 Bangumi 和配置文件
 
@@ -259,7 +382,7 @@ echo "UPSTREAM_BASE=$UPSTREAM_BASE  THEIRS=$THEIRS"
 # 准备 base / theirs 目录（Windows 上 M 用 D:/... 形式，见下方注意）
 M=D:/mik-merge
 mkdir -p "$M/base" "$M/theirs"
-FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
+FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Patch/MetaData/OriginalPoster.cs Patch/PatchManager.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
 for f in "${FILES[@]}"; do
   d=$(dirname "$f")
   mkdir -p "$M/base/$d" "$M/theirs/$d"
@@ -435,14 +558,62 @@ gh workflow run ci.yml -f channel=stable -R ssabv/MediaInfoKeeper
 
 ---
 
+## 排查 Emby 内部实现的手段（改 patch 前必用）
+
+`AGENTS.md` 要求：改任何针对 Emby 内部的方法签名之前，先读签名快照与反编译源码。
+签名快照在 `~/Documents/Emby/dlls/<emby_version>/`，由 `Scripts/pull-dll` / `pull-methods` / `decompile` 生成，
+**需要能 SSH 到 NAS 上的 emby 容器**。
+
+**没有 NAS 时**可以直接下官方包自己反编译（包是公开的）：
+
+```bash
+# 1) 下官方包（4.10.0.40 约 210MB）
+curl -x <proxy> -LO https://github.com/MediaBrowser/Emby.Releases/releases/download/4.10.0.40/embyserver-netcore_4.10.0.40.zip
+# 2) 取出需要的程序集 —— 就是 pull-dll 从容器里拷的那几个
+python -c "import zipfile;zipfile.ZipFile('embyserver-netcore_4.10.0.40.zip').extract('system/plugins/MovieDb.dll','ex')"
+# 3) 反编译
+dotnet tool install -g ilspycmd --version 8.2.0.7535   # 最新版在 .NET SDK 8 上装不上
+DOTNET_ROLL_FORWARD=LatestMajor ilspycmd -o dec -r ex/system ex/system/Emby.Providers.dll
+```
+
+要点：
+
+- `ilspycmd` 8.2 面向 .NET 6；本机只有 SDK 8 时用 `DOTNET_ROLL_FORWARD=LatestMajor` 前滚即可，不必额外装运行时
+- 只找字符串常量时用 Python 按 **UTF-16LE** 抽（.NET 的 `#US` 堆是 UTF-16，按 ASCII 抽不到），比反编译快得多
+- **本机可直接编译验证**：`dotnet restore`（带代理）→ `dotnet tool install -g dotnet-ilrepack --version 2.0.44` →
+  `dotnet build MediaInfoKeeper.csproj`，期望 `0 个警告 0 个错误`；Emby NuGet 包是 `MediaBrowser.Server.Core`
+
+### TMDB 侧数据怎么查
+
+- **网页即可**拿到原语言与海报语言分布：`https://www.themoviedb.org/tv/<id>`（Facts 区有 Original Language）、
+  `https://www.themoviedb.org/tv/<id>/images/posters`（语言筛选面板带每语言张数，
+  可用正则 `data-language="([a-z]{2})"(.*?)</a>` 提取）
+- 需要 `languages` / `origin_country` 这类网页不展示的字段时，才需要走 `api.themoviedb.org`（要有 API key）
+- 不想联网时，也可以直接看插件自己的 debug 日志：`OriginalPoster 重排：item=...，原语言=xx，命中=N，总数=M`
+
+---
+
 ## 版本变更记录
 
-### v1.7.5.4-bangumi (当前)
+### v1.7.5.5（fork 功能版，当前）
+
+> 上游基准未变（仍 v1.7.5.4）。`AssemblyVersion` 保持 `1.7.5.4` 不变，因此 CI 判为 beta 通道，
+> 迭代期间产出过 `v1.7.5.5-beta.1` / `-beta.2` / `-beta.3` 三个预发布（base 恒为 `1.7.5.5`，仅后缀递增）。
+> master 上已压缩为**一个** fork 功能提交 —— 历史为：上游 `148994c` → 同步提交 `b8eac31` → fork 功能提交。
+
+- 新增: 「集图片默认使用无语言」—— `Patch/MetaData/EpisodeNeutralImage.cs`（`HarmonyPostfix` 重排集的远程图片结果）+ `MetaDataOptions.EnableEpisodeNeutralImage` 选项 + `PatchManager` 注册
+- 修复: 「优先原语言海报」导致图片搜不出来 —— 旧 prefix 替换 `PreferredImageLanguage` 并强制 `IncludeAllLanguages = false`，会把本地图片列表筛空，同时掐掉手动「所有语言」搜索
+- 变更: `Patch/MetaData/OriginalPoster.cs` 改为「prefix 置 `IncludeAllLanguages = true` + postfix 原语言优先重排」，删除 `CopyLibraryOptions`；该文件已由纯上游文件变为 **fork 已改文件**
+- 修复: 剧集「原语言」被解析成英文（英文海报排第一）—— 剧集 DTO `SeriesRootObject` **没有** `original_language` 属性，旧代码等价于直接取 TMDB `languages[0]`；改为三级取值链 `origin_country` 映射 → `languages` 里第一个非 `en` 的 → `languages[0]`（**电影路径不变**）
+- 依据: 两处机制结论均来自对 Emby 4.10.0.40 的反编译，详见上文「集图片默认使用无语言」与「原语言海报改为结果重排」两节
+- 验证: 本机 `dotnet build` 对 net8.0 / net6.0 均 0 警告 0 错误
+
+### v1.7.5.4-bangumi
 
 - 上游基准: v1.7.5.4 (honue, `148994c`)
 - 变更: 三方合并同步至 v1.7.5.4，保持 Bangumi 所有修改（11 个文件与 fork 版本逐字节一致）
 - 变更: 自动更新地址 4 处改为 ssabv/MediaInfoKeeper
-- 注意: 上游 v1.7.5.4 把 `Version.json` 的 `minEmbyVersion` 抬到 `4.10.0.40`，并适配了 Emby 4.10.0.40 内部方法签名（`FfProcessGuard`/`IsoProbe`/`OriginalPoster`）。Emby 4.9.x 环境需自行评估兼容性
+- 注意: 上游 v1.7.5.4 把 `Version.json` 的 `minEmbyVersion` 抬到 `4.10.0.40`，并按 4.10.0.40 适配了内部方法签名（`FfProcessGuard`/`IsoProbe`/`OriginalPoster`）。**Emby 4.9.x 不再受支持** —— `PatchMethodResolver` 只做精确签名匹配且无多版本回退，4.9 上多项 patch 会解析失败（例：`MovieDbProvider.EnsureMovieInfo` 在 4.10 多了 `bool` 入参，解析不到会让 `OriginalPoster` 整条链静默失效）
 
 ### v1.7.5.3-bangumi
 

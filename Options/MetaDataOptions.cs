@@ -58,6 +58,10 @@ namespace MediaInfoKeeper.Options {
         [Description("开启后优先 TMDB 原语言图片结果。")]
         public bool EnableOriginalPoster { get; set; } = false;
 
+        [DisplayName("集图片默认使用无语言")]
+        [Description("开启后，集的远程图片中无语言（无文字）版本会排到最前并被优先采用；其余语言图片仍保留可选。只作用于集。")]
+        public bool EnableEpisodeNeutralImage { get; set; } = false;
+
         [DisplayName("启用 TMDB 剧集组刮削")]
         [Description("开启后支持按 TMDB 剧集组映射刮削剧集元数据（需在剧集外部ID中填写 TmdbEg，或启用本地剧集组文件）。")]
         public bool EnableMovieDbEpisodeGroup { get; set; } = true;
@@ -172,6 +176,7 @@ namespace MediaInfoKeeper.Options {
                 nameof(EnableAlternativeTitleFallback),
                 nameof(FallbackLanguages),
                 nameof(EnableOriginalPoster),
+                nameof(EnableEpisodeNeutralImage),
                 nameof(EnableMovieDbEpisodeGroup),
                 nameof(EnableMissingEpisodesEnhance),
                 nameof(EnableLocalEpisodeGroup));
