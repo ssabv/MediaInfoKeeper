@@ -55,6 +55,36 @@ var options = new MetadataRefreshOptions(...)
 
 ---
 
+## 集图片默认使用无语言（fork 私有）
+
+> 开关：元数据设置页 → TMDB 组 →「集图片默认使用无语言」，`MetaDataOptions.EnableEpisodeNeutralImage`，默认 `false`
+
+把**集（Episode）**远程图片结果里的无语言版本稳定排到最前，让 Emby 默认采用无文字版图片，同时保留其余语言图片可选。
+
+### 为什么是重排而不是改语言偏好
+
+Emby 向 TMDB 请求图片时用的是 `include_image_language={首选图片语言},null` —— 首选语言和无语言（`null`）**本来就在同一个结果集里**。所以不需要动语言偏好，只要对结果做一次稳定分区、把无语言排到前面即可：
+
+- **不改变可选范围**：图片选择器里其它语言仍然可选，不会出现「某集一个图都没有」
+- **不改动库级设置**：`LibraryOptions.PreferredImageLanguage` 保持原样，避免污染全局库配置
+- **与「优先原语言海报」兼容**：那个补丁走 prefix 改入参（并复制 `LibraryOptions` 防污染），本补丁走 postfix 改结果，两者可同时开启
+
+### 挂载点与实现
+
+- 目标方法：`Emby.Providers.Manager.ProviderManager.GetAvailableRemoteImages` 的**两个重载**（4 参 sync / 5 参含 `IDirectoryService` 的 async），使用 `HarmonyPostfix`
+- 只处理 `item is Episode`，其它条目类型直接放行
+- 通过 `ref Task<IEnumerable<RemoteImageInfo>> __result` 替换返回值：await 原任务后做一次稳定分区（无语言在前，其余保持原有相对顺序），返回物化后的 `List<RemoteImageInfo>`
+- 无语言判据：`string.IsNullOrWhiteSpace(image.Language)`
+- 无语言数量为 0、或等于总数时直接返回原列表，不做多余改动
+- Harmony 实例 `mediainfokeeper.episodeneutralimage`，hook 只装一次；`Configure` 只翻 `isEnabled` 标志 → **运行时开关不需要重启，也不需要重装补丁**
+- 命中重排时打 debug 日志：`EpisodeNeutralImage 重排：item=...，无语言=N，总数=M`
+
+### 注意
+
+只影响**远程图片列表的获取**，不改已落盘的本地图片 —— 开启后需要**重新刷新集的图片**才看得到效果。
+
+---
+
 ## 实现原理
 
 ### 数据流
@@ -109,24 +139,26 @@ Emby 元数据刷新 ──▶ BangumiCharacterProvider.FetchAsync()
 
 ## 修改文件清单
 
-### 新增文件（3 个，直接复制即可）
+### 新增文件（4 个，直接复制即可）
 
 | 文件 | 行数 | 说明 |
 |------|------|------|
-| `Common/BangumiApiClient.cs` | 180 | Bangumi REST API 客户端：搜索、角色列表、角色详情、人物详情 |
-| `Provider/BangumiCharacterProvider.cs` | 539 | 核心 Provider：实现 ICustomMetadataProvider，接入 Emby 元数据管线 |
-| `ScheduledTask/BangumiCharacterRefreshTask.cs` | 117 | 独立计划任务：批量触发元数据刷新 |
+| `Common/BangumiApiClient.cs` | 249 | Bangumi REST API 客户端：搜索、角色列表、角色详情、人物详情 |
+| `Provider/BangumiCharacterProvider.cs` | 726 | 核心 Provider：实现 ICustomMetadataProvider，接入 Emby 元数据管线 |
+| `ScheduledTask/BangumiCharacterRefreshTask.cs` | 133 | 独立计划任务：批量触发元数据刷新 |
+| `Patch/MetaData/EpisodeNeutralImage.cs` | 159 | 集图片无语言优先：postfix 重排远程图片结果（见下方「集图片默认使用无语言」） |
 
-### 编辑文件（10 个，需按模式插入代码）
+### 编辑文件（11 个，需按模式插入代码）
 
 | 文件 | 改动说明 |
 |------|----------|
-| `Options/MetaDataOptions.cs` | 在 `TvdbFallbackLanguages` 之后、`Initialize()` 之前添加 3 个 Bangumi 属性 |
+| `Options/MetaDataOptions.cs` | 在 `TvdbFallbackLanguages` 之后、`Initialize()` 之前添加 3 个 Bangumi 属性；另在 `EnableOriginalPoster` 之后添加 `EnableEpisodeNeutralImage` 属性，并加入 `AddGroup("TMDB", ...)` |
 | `Options/MainPageOptions.cs` | 添加 `BangumiCharacterTaskEditorOptions` 类 + `ScheduledTaskEditorOptions.BangumiCharacter` 属性 + `EnsureScheduledTaskEditors`/`PrepareScheduledTaskEditorForUi`/`BuildScheduledTaskEntries` 中的对应代码 |
 | `Options/MainPageOptions.cs` | `UpdatePluginProjectUrl` 改为 ssabv 地址 |
 | `Options/GitHubOptions.cs` | `ProjectUrl` 改为 ssabv 地址 |
 | `Options/View/MainPageView.cs` | 添加 `BangumiCharacterDialogCommandId`/`BangumiCharacterRunCommandId` 常量 + DialogView/RunCommand 分支 |
 | `Options/View/MainPageScheduledTaskDialogs.cs` | 文件末尾添加 `BangumiCharacterTaskDialogView` 类 |
+| `Patch/PatchManager.cs` | 在 `OriginalPoster` registration 之后添加 `EpisodeNeutralImage` registration |
 | `Plugin.cs` | `NormalizePluginOptions` 中添加 `BangumiCharacter.BangumiCharacterLibraries` 规范化 |
 | `Patch/Enhance/ChineseSearch.cs` | 3 处 `LoadTokenizerExtension(connection, false)` → `true` |
 | `ScheduledTask/UpdatePluginTask.cs` | `RepoVersionUrl` 改为 ssabv 地址 |
@@ -259,7 +291,7 @@ echo "UPSTREAM_BASE=$UPSTREAM_BASE  THEIRS=$THEIRS"
 # 准备 base / theirs 目录（Windows 上 M 用 D:/... 形式，见下方注意）
 M=D:/mik-merge
 mkdir -p "$M/base" "$M/theirs"
-FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
+FILES=(Options/GitHubOptions.cs Options/MainPageOptions.cs Options/MediaInfoOptions.cs Options/MetaDataOptions.cs Options/View/MainPageScheduledTaskDialogs.cs Options/View/MainPageView.cs Patch/Enhance/ChineseSearch.cs Patch/MediaInfo/PlaybackFfprocess.cs Patch/PatchManager.cs Plugin.cs ScheduledTask/UpdatePluginTask.cs Services/ReleaseInfoService.cs)
 for f in "${FILES[@]}"; do
   d=$(dirname "$f")
   mkdir -p "$M/base/$d" "$M/theirs/$d"
