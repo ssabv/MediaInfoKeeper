@@ -17,9 +17,37 @@ using MediaBrowser.Model.Providers;
 
 namespace MediaInfoKeeper.Patch {
     /// <summary>
-    ///     在远程图片统一入口临时改用作品原语言作为图片语言。
+    ///     让作品原语言的图片排在远程图片列表最前，优先被 Emby 采用。
+    ///     分两步，缺一不可：
+    ///     1. prefix 把 query.IncludeAllLanguages 置为 true。Emby 只在 !IncludeAllLanguages 时按
+    ///        「首选图片语言 + 无语言」过滤结果（ProviderManager.GetAvailableRemoteImages），
+    ///        原语言图片会因不在首选语言里被丢掉，postfix 就没东西可排。
+    ///     2. postfix 把 Language 等于原语言的图片稳定排到最前，其余保持 Emby 原有顺序。
+    ///     之所以不再走「替换 PreferredImageLanguage」，是因为 MovieDb 的图片 Provider 显式丢弃了
+    ///     LibraryOptions（`_ = options.LibraryOptions;`），TMDB 请求根本不会带上这个语言，
+    ///     它只影响 Emby 的本地过滤；一旦该作品在 TMDB 既无该语言图、又无无语言图，结果就是空列表
+    ///     （原语言解析成功却搜不出图），同时无条件 IncludeAllLanguages = false 还会掐掉
+    ///     手动「所有语言」搜索。现在这两条副作用都不存在了。
     /// </summary>
     public static class OriginalPoster {
+        /// <summary>
+        ///     剧集出口国家 → 原语言。仅用于剧集（其 DTO 没有 original_language），命中不了再退化到 languages。
+        /// </summary>
+        private static readonly Dictionary<string, string> OriginCountryLanguages =
+            new(StringComparer.OrdinalIgnoreCase) {
+                ["JP"] = "ja",
+                ["CN"] = "zh", ["TW"] = "zh", ["HK"] = "zh", ["MO"] = "zh", ["SG"] = "zh",
+                ["KR"] = "ko", ["KP"] = "ko",
+                ["US"] = "en", ["GB"] = "en", ["CA"] = "en", ["AU"] = "en", ["NZ"] = "en", ["IE"] = "en",
+                ["FR"] = "fr", ["DE"] = "de", ["AT"] = "de", ["IT"] = "it",
+                ["ES"] = "es", ["MX"] = "es", ["AR"] = "es", ["CL"] = "es", ["CO"] = "es",
+                ["BR"] = "pt", ["PT"] = "pt", ["RU"] = "ru", ["UA"] = "uk", ["PL"] = "pl",
+                ["NL"] = "nl", ["SE"] = "sv", ["NO"] = "no", ["DK"] = "da", ["FI"] = "fi",
+                ["TH"] = "th", ["VN"] = "vi", ["IN"] = "hi", ["ID"] = "id", ["PH"] = "tl",
+                ["MY"] = "ms", ["TR"] = "tr", ["SA"] = "ar", ["EG"] = "ar", ["IL"] = "he",
+                ["GR"] = "el", ["CZ"] = "cs", ["HU"] = "hu", ["RO"] = "ro"
+            };
+
         private static readonly object InitLock = new();
 
         private static Harmony harmony;
@@ -103,8 +131,8 @@ namespace MediaInfoKeeper.Patch {
                     "OriginalPoster.ProviderManager.GetAvailableRemoteImages(async)");
 
                 var patched = 0;
-                patched += PatchMethod(providerGetAvailableRemoteImages, nameof(GetAvailableRemoteImagesPrefix));
-                patched += PatchMethod(providerGetAvailableRemoteImagesAsync, nameof(GetAvailableRemoteImagesPrefix));
+                patched += PatchMethod(providerGetAvailableRemoteImages);
+                patched += PatchMethod(providerGetAvailableRemoteImagesAsync);
 
                 IsReady = patched > 0;
                 if (!IsReady) PatchLog.InitFailed(logger, nameof(OriginalPoster), "Provider hooks 安装失败");
@@ -117,13 +145,17 @@ namespace MediaInfoKeeper.Patch {
             }
         }
 
-        private static int PatchMethod(MethodInfo method, string prefix) {
+        private static int PatchMethod(MethodInfo method) {
             if (method == null || harmony == null) return 0;
 
-            var prefixMethod =
+            harmony.Patch(
+                method,
                 new HarmonyMethod(
-                    typeof(OriginalPoster).GetMethod(prefix, BindingFlags.Static | BindingFlags.NonPublic));
-            harmony.Patch(method, prefixMethod);
+                    typeof(OriginalPoster).GetMethod(nameof(GetAvailableRemoteImagesPrefix),
+                        BindingFlags.Static | BindingFlags.NonPublic)),
+                new HarmonyMethod(
+                    typeof(OriginalPoster).GetMethod(nameof(GetAvailableRemoteImagesPostfix),
+                        BindingFlags.Static | BindingFlags.NonPublic)));
             PatchLog.Patched(logger, nameof(OriginalPoster), method);
             return 1;
         }
@@ -186,19 +218,55 @@ namespace MediaInfoKeeper.Patch {
             if (!movieDbResolved && logFailure) PatchLog.InitFailed(logger, nameof(OriginalPoster), "MovieDb 原语言入口解析失败");
         }
 
-        [HarmonyPrefix]
-        private static void GetAvailableRemoteImagesPrefix(BaseItem item, ref LibraryOptions libraryOptions,
-            ref RemoteImageQuery query, CancellationToken cancellationToken) {
-            if (!isEnabled || item == null || libraryOptions == null || query == null) return;
+        /// <summary>
+        ///     让 Emby 不要按语言把远程图片列表收窄。
+        ///     Emby 仅在 !IncludeAllLanguages 时按「首选图片语言 + 无语言」过滤（见 ProviderManager.GetAvailableRemoteImages），
+        ///     作品原语言不在首选语言里时会被直接丢掉，postfix 就没有东西可排。
+        ///     这个字段在整个 Emby.Providers 里只被那一处过滤读取，置 true 的副作用仅限于「不去掉候选」；
+        ///     它不影响发往 TMDB 的请求（图片 Provider 不传语言），也不影响实际下载张数
+        ///     （自动刮削每个单图类型只下载列表里的第一张，Backdrop 受 backdropLimit 限制）。
+        /// </summary>
+        private static void GetAvailableRemoteImagesPrefix([HarmonyArgument(0)] BaseItem item,
+            ref RemoteImageQuery query) {
+            if (!isEnabled || item == null || query == null) return;
+            if (query.IncludeAllLanguages) return;
+            if (GetTmdbMediaType(item) == null) return;
 
-            var originalLanguage = GetOriginalLanguage(item, cancellationToken);
-            if (string.IsNullOrWhiteSpace(originalLanguage)) return;
+            query.IncludeAllLanguages = true;
+        }
 
-            query.IncludeAllLanguages = false;
-            libraryOptions = CopyLibraryOptions(libraryOptions);
-            libraryOptions.PreferredImageLanguage = originalLanguage;
-            logger?.Debug("OriginalPoster image language: item={0}, originalLanguage={1}", GetItemLabel(item),
-                originalLanguage);
+        private static void GetAvailableRemoteImagesPostfix([HarmonyArgument(0)] BaseItem item,
+            ref Task<IEnumerable<RemoteImageInfo>> __result) {
+            if (!isEnabled || __result == null || item == null) return;
+
+            __result = PreferOriginalLanguageAsync(__result, item);
+        }
+
+        private static async Task<IEnumerable<RemoteImageInfo>> PreferOriginalLanguageAsync(
+            Task<IEnumerable<RemoteImageInfo>> task, BaseItem item) {
+            var images = await task.ConfigureAwait(false);
+            if (images == null) return null;
+
+            var list = images as IList<RemoteImageInfo> ?? images.ToList();
+            if (list.Count < 2) return list;
+
+            var originalLanguage = GetOriginalLanguage(item, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(originalLanguage)) return list;
+
+            var matched = list.Count(image => IsLanguageMatch(image, originalLanguage));
+            if (matched == 0 || matched == list.Count) return list;
+
+            var ordered = new List<RemoteImageInfo>(list.Count);
+            ordered.AddRange(list.Where(image => IsLanguageMatch(image, originalLanguage)));
+            ordered.AddRange(list.Where(image => !IsLanguageMatch(image, originalLanguage)));
+
+            logger?.Debug("OriginalPoster 重排：item={0}，原语言={1}，命中={2}，总数={3}",
+                GetItemLabel(item), originalLanguage, matched, list.Count);
+            return ordered;
+        }
+
+        private static bool IsLanguageMatch(RemoteImageInfo image, string language) {
+            return string.Equals(image?.Language, language, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetOriginalLanguage(BaseItem item, CancellationToken cancellationToken) {
@@ -275,9 +343,43 @@ namespace MediaInfoKeeper.Patch {
                 return GetStringProperty(result, "original_language");
 
             if (string.Equals(mediaType, "tv", StringComparison.OrdinalIgnoreCase))
-                return GetFirstString(result.GetType()
-                           .GetProperty("languages", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result)) ??
-                       GetStringProperty(result, "original_language");
+                return GetSeriesOriginalLanguage(result);
+
+            return null;
+        }
+
+        /// <summary>
+        ///     推断剧集的原语言。
+        ///     剧集的 DTO（SeriesRootObject）**没有 original_language 属性**（只有电影 DTO 有），
+        ///     所以不能像电影那样直接读权威字段，只能按 origin_country 映射，再退化到 languages。
+        ///     注意不能直接用 languages[0]：它是 TMDB 的 spoken/available 语言列表，顺序不可靠。
+        ///     例：tv/278043「正反対な君と僕」original_language = ja，但 languages = ['en','ja']、
+        ///     spoken_languages 里 en 也在前，取 languages[0] 会把英文当成原语言。
+        /// </summary>
+        private static string GetSeriesOriginalLanguage(object result) {
+            var byCountry = MapOriginCountryToLanguage(result);
+            if (!string.IsNullOrWhiteSpace(byCountry)) return byCountry;
+
+            var languages = GetStrings(result.GetType()
+                .GetProperty("languages", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result));
+            if (languages.Count == 0) return null;
+
+            foreach (var language in languages)
+                if (!string.Equals(language, "en", StringComparison.OrdinalIgnoreCase))
+                    return language;
+
+            return languages[0];
+        }
+
+        private static string MapOriginCountryToLanguage(object result) {
+            var countries = GetStrings(result.GetType()
+                .GetProperty("origin_country", BindingFlags.Instance | BindingFlags.Public)?.GetValue(result));
+
+            foreach (var country in countries) {
+                var code = country?.Trim().ToUpperInvariant();
+                if (!string.IsNullOrEmpty(code) && OriginCountryLanguages.TryGetValue(code, out var language))
+                    return language;
+            }
 
             return null;
         }
@@ -289,26 +391,16 @@ namespace MediaInfoKeeper.Patch {
                 ?.ToString();
         }
 
-        private static string GetFirstString(object source) {
-            if (!(source is IEnumerable values)) return null;
+        private static List<string> GetStrings(object source) {
+            var result = new List<string>();
+            if (!(source is IEnumerable values)) return result;
 
             foreach (var value in values) {
                 var text = value?.ToString();
-                if (!string.IsNullOrWhiteSpace(text)) return text;
+                if (!string.IsNullOrWhiteSpace(text)) result.Add(text);
             }
 
-            return null;
-        }
-
-        private static LibraryOptions CopyLibraryOptions(LibraryOptions source) {
-            var copy = new LibraryOptions();
-            foreach (var property in typeof(LibraryOptions).GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-                if (!property.CanRead || !property.CanWrite) continue;
-
-                property.SetValue(copy, property.GetValue(source));
-            }
-
-            return copy;
+            return result;
         }
 
         private static string NormalizeLanguage(string language) {
