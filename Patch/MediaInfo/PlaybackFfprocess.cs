@@ -113,6 +113,14 @@ namespace MediaInfoKeeper.Patch {
 
         private static void PlaybackInfoPrefix([HarmonyArgument(0)] object request,
             out FfProcessGuard.AllowanceHandle __state) {
+            if (Plugin.Instance?.Options?.MediaInfo?.BlockPlaybackMediaInfoExtract == true) {
+                // 无条件阻止: 不创建放行作用域 -> ffprobe/ffmpeg 被 FfProcessGuard 拦截
+                // 播放不探测媒体信息, 起播更快, 代价是无播放进度
+                logger?.Debug("BlockPlaybackMediaInfoExtract: 播放探测已屏蔽");
+                __state = null;
+                return;
+            }
+
             var requestType = request?.GetType();
             var itemId = requestType?.GetProperty("Id")?.GetValue(request) as string;
             __state = FfProcessGuard.BeginAllow(CreatePlaybackContext(ParseItemId(itemId)));
@@ -120,6 +128,12 @@ namespace MediaInfoKeeper.Patch {
 
         private static void OpenLiveStreamPrefix([HarmonyArgument(0)] LiveStreamRequest request,
             out FfProcessGuard.AllowanceHandle __state) {
+            if (Plugin.Instance?.Options?.MediaInfo?.BlockPlaybackMediaInfoExtract == true) {
+                logger?.Debug("BlockPlaybackMediaInfoExtract: 直播探测已屏蔽");
+                __state = null;
+                return;
+            }
+
             __state = FfProcessGuard.BeginAllow();
         }
 

@@ -293,6 +293,19 @@ namespace MediaInfoKeeper.Patch {
             });
 
             registrations.Add(new PatchRegistration {
+                Name = "EpisodeNeutralImage",
+                Initialize = options => EpisodeNeutralImage.Initialize(
+                    logger,
+                    options.MetaData.EnableEpisodeNeutralImage),
+                Configure = options => EpisodeNeutralImage.Configure(
+                    IsPluginEnabled(options) && options.MetaData.EnableEpisodeNeutralImage),
+                IsEnabled = options => IsPluginEnabled(options) && options.MetaData.EnableEpisodeNeutralImage,
+                IsReady = () => EpisodeNeutralImage.IsReady,
+                IsWaiting = () => EpisodeNeutralImage.IsWaiting,
+                Notes = () => "put language neutral remote images first for episodes"
+            });
+
+            registrations.Add(new PatchRegistration {
                 Name = "UnlockIntroSkip",
                 Initialize = options => {
                     IntroUnlock.Initialize(logger, true);

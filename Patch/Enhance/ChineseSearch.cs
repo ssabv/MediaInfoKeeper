@@ -366,7 +366,7 @@ namespace MediaInfoKeeper.Patch {
             var rebuildFtsResult = true;
             var patchSearchFunctionsResult = false;
             var shouldLogLoadSuccess = false;
-            var simpleTokenizerLoaded = LoadTokenizerExtension(connection, false);
+            var simpleTokenizerLoaded = LoadTokenizerExtension(connection, true);
 
             try {
                 CurrentTokenizerName = DetectCurrentTokenizer(connection, ftsTableName);
@@ -495,7 +495,7 @@ namespace MediaInfoKeeper.Patch {
                 logger?.Info($"增强搜索 - 重建前当前分词器：{CurrentTokenizerName}");
 
                 var targetTokenizer = "unicode61 remove_diacritics 2";
-                if (enhanceChineseSearchEnabled && LoadTokenizerExtension(connection, false)) targetTokenizer = "simple";
+                if (enhanceChineseSearchEnabled && LoadTokenizerExtension(connection, true)) targetTokenizer = "simple";
 
                 var rebuildResult = RebuildFts(connection, ftsTableName, targetTokenizer);
                 if (!rebuildResult) {
@@ -861,7 +861,7 @@ namespace MediaInfoKeeper.Patch {
             if (db?.EndsWith("library.db", StringComparison.OrdinalIgnoreCase) != true) return;
 
             // Emby 4.9 连接池会持续创建/复用新连接，simple 扩展必须按连接加载。
-            LoadTokenizerExtension(connection, false);
+            LoadTokenizerExtension(connection, true);
 
             if (isReadOnly || patchPhase2Completed) return;
 
